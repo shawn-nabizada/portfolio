@@ -124,3 +124,43 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* View Transitions for dark/light mode toggle */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+  mix-blend-mode: normal;
+}
+
+::view-transition-old(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  z-index: 9999;
+}
+
+.dark::view-transition-old(root) {
+  z-index: 9999;
+}
+
+.dark::view-transition-new(root) {
+  z-index: 1;
+}
+
+::view-transition-new(root) {
+  animation: reveal 0.4s ease-in-out;
+}
+
+.dark::view-transition-old(root) {
+  animation: reveal 0.4s ease-in-out reverse;
+}
+
+@keyframes reveal {
+  from {
+    clip-path: circle(0 at var(--x) var(--y));
+  }
+  to {
+    clip-path: circle(var(--r) at var(--x) var(--y));
+  }
+}

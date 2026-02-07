@@ -13,7 +13,8 @@
 // Optional env vars:
 //   ADMIN_FULL_NAME            — Display name (defaults to "Admin")
 
-import "dotenv/config";
+import dotenv from "dotenv";
+dotenv.config({ path: ".env.local" });
 import { createClient } from "@supabase/supabase-js";
 
 async function main() {

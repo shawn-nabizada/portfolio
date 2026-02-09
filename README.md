@@ -1,36 +1,91 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Portfolio
 
-## Getting Started
+Dynamic portfolio built with Next.js App Router, Supabase (DB/Auth/Storage), and a protected admin panel.
 
-First, run the development server:
+## Stack
+
+- Next.js 16
+- Supabase (`@supabase/supabase-js`, `@supabase/ssr`)
+- Tailwind CSS + shadcn/ui
+- Framer Motion
+- Vercel (primary production target)
+
+## Documentation
+
+- Local development: `docs/LocalDev.md`
+- Production deployment: `docs/DeploymentManual.md`
+
+The manuals above are the source of truth for setup and operations.
+
+## Quick Start
+
+1. Install dependencies:
+
+```bash
+npm install
+```
+
+2. Configure env:
+
+```bash
+cp .env.example .env.local
+```
+
+3. Link and migrate your Supabase dev project:
+
+```bash
+npx supabase login
+npx supabase link --project-ref <dev-project-ref>
+npx supabase db push
+```
+
+4. Run local app:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+5. Open `http://localhost:3000/en` and `http://localhost:3000/fr`.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+For admin bootstrap and troubleshooting, use `docs/LocalDev.md`.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Production Release Pipeline
 
-## Learn More
+Production releases are automated by GitHub Actions workflow
+`.github/workflows/prod-release.yml`.
 
-To learn more about Next.js, take a look at the following resources:
+Flow on every push to `main`:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+1. `npm run lint`
+2. `npm run build`
+3. `supabase db push` against production via `SUPABASE_DB_URL` secret
+4. Trigger Vercel production Deploy Hook
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Required GitHub Actions secrets:
 
-## Deploy on Vercel
+- `SUPABASE_DB_URL`
+- `VERCEL_DEPLOY_HOOK_URL`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Required Vercel production environment variables:
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `SUPABASE_SERVICE_ROLE_KEY`
+- `NEXT_PUBLIC_SITE_URL`
+- `NEXT_PUBLIC_DEFAULT_LOCALE`
+- `REVALIDATION_SECRET`
+
+Setup details and operational runbook are in `docs/DeploymentManual.md`.
+
+## Scripts
+
+- `npm run dev` - start dev server
+- `npm run lint` - run ESLint
+- `npm run build` - build production bundle
+- `npm run start` - start production server
+
+## Notes
+
+- Admin write access requires `app_metadata.role = "admin"`.
+- Revalidation endpoint requires `x-revalidation-secret`.
+- Analytics counters include portfolio views and resume downloads.

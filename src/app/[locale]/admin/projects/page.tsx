@@ -38,6 +38,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { fetchJson, fetchMutation } from "@/lib/http/mutation";
+import { toast } from "sonner";
 
 // ─── Project Dialog ─────────────────────────────────────────────────────
 interface ProjectFormData {
@@ -118,6 +120,8 @@ function ProjectDialog({
     try {
       await onSave(form);
       onOpenChange(false);
+    } catch {
+      // Keep dialog open on failure.
     } finally {
       setSaving(false);
     }
@@ -401,17 +405,16 @@ export default function AdminProjectsPage() {
   // Fetch data
   const fetchData = useCallback(async () => {
     try {
-      const [projectsRes, skillsRes] = await Promise.all([
-        fetch("/api/projects"),
-        fetch("/api/skills"),
+      const [projectsData, skillsData] = await Promise.all([
+        fetchJson<Project[]>("/api/projects"),
+        fetchJson<Skill[]>("/api/skills"),
       ]);
-
-      if (projectsRes.ok) {
-        setProjects(await projectsRes.json());
-      }
-      if (skillsRes.ok) {
-        setAllSkills(await skillsRes.json());
-      }
+      setProjects(projectsData);
+      setAllSkills(skillsData);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to load projects data"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -423,20 +426,26 @@ export default function AdminProjectsPage() {
 
   // ── Project CRUD ────────────────────────────────────────────────────
   const handleSaveProject = async (data: ProjectFormData) => {
-    if (editingProject) {
-      await fetch(`/api/projects/${editingProject.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-    } else {
-      await fetch("/api/projects", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+    try {
+      if (editingProject) {
+        await fetchMutation(`/api/projects/${editingProject.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+      } else {
+        await fetchMutation("/api/projects", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+      }
+      toast.success(t.common.savedSuccessfully);
+      await fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
+      throw error;
     }
-    await fetchData();
   };
 
   const openAddProject = () => {
@@ -458,9 +467,14 @@ export default function AdminProjectsPage() {
   const handleDelete = async () => {
     if (!deleteTargetId) return;
 
-    await fetch(`/api/projects/${deleteTargetId}`, { method: "DELETE" });
-    setDeleteTargetId(null);
-    await fetchData();
+    try {
+      await fetchMutation(`/api/projects/${deleteTargetId}`, { method: "DELETE" });
+      toast.success(t.common.deletedSuccessfully);
+      setDeleteTargetId(null);
+      await fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
+    }
   };
 
   // ── Loading state ──────────────────────────────────────────────────

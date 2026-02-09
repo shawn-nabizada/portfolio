@@ -1,20 +1,22 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdminUser } from "@/lib/auth/admin";
+import { apiError, apiSuccess } from "@/lib/http/api";
+import { revalidatePortfolioPages } from "@/lib/revalidation";
 
 export async function GET() {
-  const adminClient = createAdminClient();
+  const supabase = await createClient();
 
-  const { data, error } = await adminClient
+  const { data, error } = await supabase
     .from("projects")
     .select("*, project_skills(skill_id, skills(*))")
     .order("order");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error.message);
   }
 
-  // Flatten nested project_skills into a skills[] array on each project
   const projects = (data ?? []).map((project) => {
     const { project_skills, ...rest } = project;
     const skills = (project_skills ?? [])
@@ -23,18 +25,13 @@ export async function GET() {
     return { ...rest, skills };
   });
 
-  return NextResponse.json(projects);
+  return apiSuccess(projects);
 }
 
 export async function POST(request: NextRequest) {
-  // Auth check
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const adminCheck = await requireAdminUser();
+  if (!adminCheck.ok) {
+    return adminCheck.response;
   }
 
   const body = await request.json();
@@ -52,10 +49,7 @@ export async function POST(request: NextRequest) {
   } = body;
 
   if (!title_en || !title_fr) {
-    return NextResponse.json(
-      { error: "title_en and title_fr are required" },
-      { status: 400 }
-    );
+    return apiError("title_en and title_fr are required", 400);
   }
 
   const adminClient = createAdminClient();
@@ -77,11 +71,10 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error.message);
   }
 
-  // Insert project_skills rows if skill_ids provided
-  if (skill_ids && Array.isArray(skill_ids) && skill_ids.length > 0) {
+  if (Array.isArray(skill_ids) && skill_ids.length > 0) {
     const projectSkillRows = skill_ids.map((skill_id: string) => ({
       project_id: data.id,
       skill_id,
@@ -92,12 +85,10 @@ export async function POST(request: NextRequest) {
       .insert(projectSkillRows);
 
     if (skillsError) {
-      return NextResponse.json(
-        { error: skillsError.message },
-        { status: 500 }
-      );
+      return apiError(skillsError.message);
     }
   }
 
-  return NextResponse.json(data, { status: 201 });
+  revalidatePortfolioPages();
+  return apiSuccess(data, 201);
 }

@@ -1,41 +1,37 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdminUser } from "@/lib/auth/admin";
+import { apiError, apiSuccess } from "@/lib/http/api";
+import { revalidatePortfolioPages } from "@/lib/revalidation";
 
 export async function GET() {
-  const adminClient = createAdminClient();
+  const supabase = await createClient();
 
-  const { data, error } = await adminClient
+  const { data, error } = await supabase
     .from("skills")
     .select("*, category:skill_categories(*)")
     .order("order");
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error.message);
   }
 
-  return NextResponse.json(data);
+  return apiSuccess(data ?? []);
 }
 
 export async function POST(request: NextRequest) {
-  // Auth check
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const adminCheck = await requireAdminUser();
+  if (!adminCheck.ok) {
+    return adminCheck.response;
   }
 
   const body = await request.json();
   const { name_en, name_fr, category_id, order } = body;
+  const parsedOrder = Number.isFinite(Number(order)) ? Number(order) : 0;
 
   if (!name_en || !name_fr) {
-    return NextResponse.json(
-      { error: "name_en and name_fr are required" },
-      { status: 400 }
-    );
+    return apiError("name_en and name_fr are required", 400);
   }
 
   const adminClient = createAdminClient();
@@ -46,14 +42,21 @@ export async function POST(request: NextRequest) {
       name_en,
       name_fr,
       category_id: category_id || null,
-      order: order ?? 0,
+      order: parsedOrder,
     })
     .select("*, category:skill_categories(*)")
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    if (
+      error.code === "23505" &&
+      (error.message.includes("skills_order_unique") || error.message.includes("(order)"))
+    ) {
+      return apiError("Another skill already uses this order value.", 400);
+    }
+    return apiError(error.message);
   }
 
-  return NextResponse.json(data, { status: 201 });
+  revalidatePortfolioPages();
+  return apiSuccess(data, 201);
 }

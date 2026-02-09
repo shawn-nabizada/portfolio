@@ -129,3 +129,12 @@ export interface SiteSetting {
   key: string;
   value: Record<string, unknown>;
 }
+
+export interface AnalyticsEvent {
+  id: string;
+  event_type: "portfolio_view" | "resume_download";
+  locale: "en" | "fr" | null;
+  path: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}

@@ -8,24 +8,23 @@ import {
   FolderKanban,
   Mail,
   MessageSquareQuote,
-  Briefcase,
-  GraduationCap,
-  Heart,
-  FileText,
-  Share2,
-  Settings,
+  Eye,
+  Download,
   type LucideIcon,
 } from "lucide-react";
 import { getTranslations, type Locale } from "@/lib/i18n";
 import { Card, CardContent } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { fetchJson } from "@/lib/http/mutation";
+import { toast } from "sonner";
 
 interface DashboardStats {
   totalSkills: number;
   totalProjects: number;
   unreadMessages: number;
   pendingTestimonials: number;
+  portfolioViews: number;
+  resumeDownloads: number;
 }
 
 interface KpiCardProps {
@@ -33,10 +32,11 @@ interface KpiCardProps {
   label: string;
   value: number;
   isLoading: boolean;
+  href?: string;
 }
 
-function KpiCard({ icon: Icon, label, value, isLoading }: KpiCardProps) {
-  return (
+function KpiCard({ icon: Icon, label, value, isLoading, href }: KpiCardProps) {
+  const card = (
     <Card>
       <CardContent className="flex items-center gap-4 pt-0">
         <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg bg-primary/10">
@@ -53,24 +53,20 @@ function KpiCard({ icon: Icon, label, value, isLoading }: KpiCardProps) {
       </CardContent>
     </Card>
   );
-}
 
-const quickLinks = [
-  { key: "skills" as const, href: "/admin/skills", icon: Lightbulb },
-  { key: "projects" as const, href: "/admin/projects", icon: FolderKanban },
-  { key: "experience" as const, href: "/admin/experience", icon: Briefcase },
-  { key: "education" as const, href: "/admin/education", icon: GraduationCap },
-  { key: "hobbies" as const, href: "/admin/hobbies", icon: Heart },
-  {
-    key: "testimonials" as const,
-    href: "/admin/testimonials",
-    icon: MessageSquareQuote,
-  },
-  { key: "messages" as const, href: "/admin/messages", icon: Mail },
-  { key: "resume" as const, href: "/admin/resume", icon: FileText },
-  { key: "socialLinks" as const, href: "/admin/social-links", icon: Share2 },
-  { key: "settings" as const, href: "/admin/settings", icon: Settings },
-];
+  if (!href) {
+    return card;
+  }
+
+  return (
+    <Link
+      href={href}
+      className="block rounded-xl transition-transform duration-150 hover:-translate-y-0.5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+    >
+      {card}
+    </Link>
+  );
+}
 
 export default function AdminDashboardPage() {
   const params = useParams();
@@ -83,13 +79,12 @@ export default function AdminDashboardPage() {
   useEffect(() => {
     async function fetchStats() {
       try {
-        const res = await fetch("/api/admin/stats");
-        if (res.ok) {
-          const data = await res.json();
-          setStats(data);
-        }
-      } catch {
-        // Stats will remain null; cards show 0
+        const data = await fetchJson<DashboardStats>("/api/admin/stats");
+        setStats(data);
+      } catch (error) {
+        const message =
+          error instanceof Error ? error.message : "Failed to load dashboard stats";
+        toast.error(message);
       } finally {
         setIsLoading(false);
       }
@@ -109,53 +104,47 @@ export default function AdminDashboardPage() {
       {/* KPI Cards */}
       <div className="grid gap-4 sm:grid-cols-2">
         <KpiCard
+          icon={Eye}
+          label={t.dashboard.portfolioViews}
+          value={stats?.portfolioViews ?? 0}
+          isLoading={isLoading}
+        />
+        <KpiCard
+          icon={Download}
+          label={t.dashboard.resumeDownloads}
+          value={stats?.resumeDownloads ?? 0}
+          isLoading={isLoading}
+        />
+        <KpiCard
           icon={Lightbulb}
           label={t.dashboard.totalSkills}
           value={stats?.totalSkills ?? 0}
           isLoading={isLoading}
+          href={`/${locale}/admin/skills`}
         />
         <KpiCard
           icon={FolderKanban}
           label={t.dashboard.totalProjects}
           value={stats?.totalProjects ?? 0}
           isLoading={isLoading}
+          href={`/${locale}/admin/projects`}
         />
         <KpiCard
           icon={Mail}
           label={t.dashboard.unreadMessages}
           value={stats?.unreadMessages ?? 0}
           isLoading={isLoading}
+          href={`/${locale}/admin/messages?filter=unread`}
         />
         <KpiCard
           icon={MessageSquareQuote}
           label={t.dashboard.pendingTestimonials}
           value={stats?.pendingTestimonials ?? 0}
           isLoading={isLoading}
+          href={`/${locale}/admin/testimonials?filter=pending`}
         />
       </div>
 
-      {/* Quick Links */}
-      <div className="space-y-4">
-        <h2 className="text-xl font-semibold">{t.dashboard.quickLinks}</h2>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {quickLinks.map((link) => {
-            const Icon = link.icon;
-            return (
-              <Button
-                key={link.key}
-                variant="outline"
-                className="h-auto justify-start gap-3 px-4 py-3"
-                asChild
-              >
-                <Link href={`/${locale}${link.href}`}>
-                  <Icon className="h-4 w-4" />
-                  {t.admin[link.key]}
-                </Link>
-              </Button>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }

@@ -34,31 +34,31 @@ export function AdminShell({ locale, translations, children }: AdminShellProps) 
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   return (
-    <div className="flex h-screen overflow-hidden">
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex lg:w-64 lg:flex-col lg:border-r bg-background">
-        <AdminSidebar locale={locale} translations={translations} />
-      </aside>
+    <div className="flex h-screen flex-col overflow-hidden">
+      <AdminHeader
+        locale={locale}
+        onMenuToggle={() => setSidebarOpen(true)}
+      />
 
-      {/* Mobile sidebar (sheet) */}
-      <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
-        <SheetContent side="left" className="w-64 p-0" showCloseButton={false}>
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <AdminSidebar
-            locale={locale}
-            translations={translations}
-            onNavigate={() => setSidebarOpen(false)}
-          />
-        </SheetContent>
-      </Sheet>
+      <div className="relative flex-1 overflow-hidden">
+        {/* Desktop sidebar overlay */}
+        <aside className="group absolute inset-y-0 left-0 z-30 hidden overflow-hidden border-r bg-background transition-[width] duration-300 ease-out lg:flex lg:w-20 lg:flex-col lg:hover:w-64 lg:hover:shadow-xl">
+          <AdminSidebar locale={locale} translations={translations} collapsible />
+        </aside>
 
-      {/* Main content area */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <AdminHeader
-          locale={locale}
-          onMenuToggle={() => setSidebarOpen(true)}
-        />
-        <main className="flex-1 overflow-y-auto p-4 lg:p-6">
+        {/* Mobile sidebar (sheet) */}
+        <Sheet open={sidebarOpen} onOpenChange={setSidebarOpen}>
+          <SheetContent side="left" className="w-64 p-0" showCloseButton={false}>
+            <SheetTitle className="sr-only">Navigation</SheetTitle>
+            <AdminSidebar
+              locale={locale}
+              translations={translations}
+              onNavigate={() => setSidebarOpen(false)}
+            />
+          </SheetContent>
+        </Sheet>
+
+        <main className="h-full overflow-y-auto p-4 lg:pr-12 lg:pl-32">
           {children}
         </main>
       </div>

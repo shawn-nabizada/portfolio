@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { getTranslations, type Locale } from "@/lib/i18n";
 import { Button } from "@/components/ui/button";
@@ -20,10 +20,15 @@ export default function AdminLoginPage() {
   const locale = (params.locale as string) || "en";
   const t = getTranslations(locale as Locale);
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState("");
+  const [error, setError] = useState(
+    searchParams.get("error") === "forbidden"
+      ? "You do not have admin access for this area."
+      : ""
+  );
   const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {

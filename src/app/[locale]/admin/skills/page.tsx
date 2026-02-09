@@ -44,6 +44,8 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { fetchJson, fetchMutation } from "@/lib/http/mutation";
+import { toast } from "sonner";
 
 const UNCATEGORIZED_VALUE = "__uncategorized__";
 
@@ -92,6 +94,8 @@ function CategoryDialog({
     try {
       await onSave(form);
       onOpenChange(false);
+    } catch {
+      // Keep dialog open on failure.
     } finally {
       setSaving(false);
     }
@@ -182,6 +186,7 @@ function SkillDialog({
   open,
   onOpenChange,
   skill,
+  defaultOrder,
   categories,
   onSave,
   t,
@@ -189,6 +194,7 @@ function SkillDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   skill: Skill | null;
+  defaultOrder: number;
   categories: SkillCategory[];
   onSave: (data: SkillFormData) => Promise<void>;
   t: ReturnType<typeof getTranslations>;
@@ -210,9 +216,9 @@ function SkillDialog({
         order: skill.order,
       });
     } else {
-      setForm({ name_en: "", name_fr: "", category_id: "", order: 0 });
+      setForm({ name_en: "", name_fr: "", category_id: "", order: defaultOrder });
     }
-  }, [skill, open]);
+  }, [defaultOrder, skill, open]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,6 +226,8 @@ function SkillDialog({
     try {
       await onSave(form);
       onOpenChange(false);
+    } catch {
+      // Keep dialog open on failure.
     } finally {
       setSaving(false);
     }
@@ -402,21 +410,24 @@ export default function AdminSkillsPage() {
     type: "skill" | "category";
     id: string;
   } | null>(null);
+  const nextSkillOrder = skills.reduce(
+    (maxOrder, skill) => Math.max(maxOrder, skill.order),
+    -1
+  ) + 1;
 
   // Fetch data
   const fetchData = useCallback(async () => {
     try {
-      const [skillsRes, categoriesRes] = await Promise.all([
-        fetch("/api/skills"),
-        fetch("/api/skill-categories"),
+      const [skillsData, categoriesData] = await Promise.all([
+        fetchJson<Skill[]>("/api/skills"),
+        fetchJson<SkillCategory[]>("/api/skill-categories"),
       ]);
-
-      if (skillsRes.ok) {
-        setSkills(await skillsRes.json());
-      }
-      if (categoriesRes.ok) {
-        setCategories(await categoriesRes.json());
-      }
+      setSkills(skillsData);
+      setCategories(categoriesData);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to load skills data"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -428,20 +439,26 @@ export default function AdminSkillsPage() {
 
   // ── Category CRUD ──────────────────────────────────────────────────
   const handleSaveCategory = async (data: CategoryFormData) => {
-    if (editingCategory) {
-      await fetch(`/api/skill-categories/${editingCategory.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-    } else {
-      await fetch("/api/skill-categories", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+    try {
+      if (editingCategory) {
+        await fetchMutation(`/api/skill-categories/${editingCategory.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+      } else {
+        await fetchMutation("/api/skill-categories", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+      }
+      toast.success(t.common.savedSuccessfully);
+      await fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
+      throw error;
     }
-    await fetchData();
   };
 
   const openAddCategory = () => {
@@ -461,20 +478,26 @@ export default function AdminSkillsPage() {
 
   // ── Skill CRUD ─────────────────────────────────────────────────────
   const handleSaveSkill = async (data: SkillFormData) => {
-    if (editingSkill) {
-      await fetch(`/api/skills/${editingSkill.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
-    } else {
-      await fetch("/api/skills", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(data),
-      });
+    try {
+      if (editingSkill) {
+        await fetchMutation(`/api/skills/${editingSkill.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+      } else {
+        await fetchMutation("/api/skills", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data),
+        });
+      }
+      toast.success(t.common.savedSuccessfully);
+      await fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
+      throw error;
     }
-    await fetchData();
   };
 
   const openAddSkill = () => {
@@ -501,9 +524,14 @@ export default function AdminSkillsPage() {
         ? `/api/skills/${deleteTarget.id}`
         : `/api/skill-categories/${deleteTarget.id}`;
 
-    await fetch(endpoint, { method: "DELETE" });
-    setDeleteTarget(null);
-    await fetchData();
+    try {
+      await fetchMutation(endpoint, { method: "DELETE" });
+      toast.success(t.common.deletedSuccessfully);
+      setDeleteTarget(null);
+      await fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
+    }
   };
 
   // ── Helpers ────────────────────────────────────────────────────────
@@ -701,6 +729,7 @@ export default function AdminSkillsPage() {
         open={skillDialogOpen}
         onOpenChange={setSkillDialogOpen}
         skill={editingSkill}
+        defaultOrder={nextSkillOrder}
         categories={categories}
         onSave={handleSaveSkill}
         t={t}

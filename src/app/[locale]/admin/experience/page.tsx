@@ -37,6 +37,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { fetchJson, fetchMutation } from "@/lib/http/mutation";
+import { toast } from "sonner";
 
 // ─── Experience Dialog ──────────────────────────────────────────────────
 interface ExperienceFormData {
@@ -88,8 +90,8 @@ function ExperienceDialog({
         description_en: experience.description_en || "",
         description_fr: experience.description_fr || "",
         location: experience.location || "",
-        start_date: experience.start_date,
-        end_date: experience.end_date || "",
+        start_date: toMonthInputValue(experience.start_date),
+        end_date: toMonthInputValue(experience.end_date),
         is_current: !experience.end_date,
         order: experience.order,
       });
@@ -115,6 +117,8 @@ function ExperienceDialog({
     try {
       await onSave(form);
       onOpenChange(false);
+    } catch {
+      // Keep dialog open on failure.
     } finally {
       setSaving(false);
     }
@@ -221,7 +225,7 @@ function ExperienceDialog({
             <Label htmlFor="exp-start-date">{t.experience.startDate}</Label>
             <Input
               id="exp-start-date"
-              type="date"
+              type="month"
               value={form.start_date}
               onChange={(e) =>
                 setForm((f) => ({ ...f, start_date: e.target.value }))
@@ -254,7 +258,7 @@ function ExperienceDialog({
               <Label htmlFor="exp-end-date">{t.experience.endDate}</Label>
               <Input
                 id="exp-end-date"
-                type="date"
+                type="month"
                 value={form.end_date}
                 onChange={(e) =>
                   setForm((f) => ({ ...f, end_date: e.target.value }))
@@ -364,6 +368,16 @@ function formatDate(dateStr: string) {
   return d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
 }
 
+function toMonthInputValue(value: string | null | undefined) {
+  if (!value) return "";
+  return value.slice(0, 7);
+}
+
+function toIsoMonthDate(value: string) {
+  if (!value) return "";
+  return /^\d{4}-\d{2}$/.test(value) ? `${value}-01` : value;
+}
+
 // ─── Main Page ──────────────────────────────────────────────────────────
 export default function AdminExperiencePage() {
   const params = useParams();
@@ -386,10 +400,12 @@ export default function AdminExperiencePage() {
   // Fetch data
   const fetchData = useCallback(async () => {
     try {
-      const res = await fetch("/api/experience");
-      if (res.ok) {
-        setExperiences(await res.json());
-      }
+      const data = await fetchJson<Experience[]>("/api/experience");
+      setExperiences(data);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "Failed to load experience data"
+      );
     } finally {
       setIsLoading(false);
     }
@@ -408,25 +424,31 @@ export default function AdminExperiencePage() {
       description_en: data.description_en,
       description_fr: data.description_fr,
       location: data.location,
-      start_date: data.start_date,
-      end_date: data.is_current ? null : data.end_date || null,
+      start_date: toIsoMonthDate(data.start_date),
+      end_date: data.is_current ? null : toIsoMonthDate(data.end_date) || null,
       order: data.order,
     };
 
-    if (editingExperience) {
-      await fetch(`/api/experience/${editingExperience.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-    } else {
-      await fetch("/api/experience", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+    try {
+      if (editingExperience) {
+        await fetchMutation(`/api/experience/${editingExperience.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      } else {
+        await fetchMutation("/api/experience", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+      }
+      toast.success(t.common.savedSuccessfully);
+      await fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
+      throw error;
     }
-    await fetchData();
   };
 
   const openAdd = () => {
@@ -446,9 +468,14 @@ export default function AdminExperiencePage() {
 
   const handleDelete = async () => {
     if (!deleteTargetId) return;
-    await fetch(`/api/experience/${deleteTargetId}`, { method: "DELETE" });
-    setDeleteTargetId(null);
-    await fetchData();
+    try {
+      await fetchMutation(`/api/experience/${deleteTargetId}`, { method: "DELETE" });
+      toast.success(t.common.deletedSuccessfully);
+      setDeleteTargetId(null);
+      await fetchData();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
+    }
   };
 
   // ── Loading state ──────────────────────────────────────────────────

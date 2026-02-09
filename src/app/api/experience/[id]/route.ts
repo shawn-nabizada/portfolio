@@ -1,19 +1,21 @@
-import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { NextRequest } from "next/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { requireAdminUser } from "@/lib/auth/admin";
+import { apiError, apiSuccess } from "@/lib/http/api";
+import { revalidatePortfolioPages } from "@/lib/revalidation";
+
+function normalizeMonthDate(value: string | null | undefined): string | null {
+  if (!value) return null;
+  return /^\d{4}-\d{2}$/.test(value) ? `${value}-01` : value;
+}
 
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Auth check
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const adminCheck = await requireAdminUser();
+  if (!adminCheck.ok) {
+    return adminCheck.response;
   }
 
   const { id } = await params;
@@ -41,8 +43,8 @@ export async function PUT(
       ...(description_en !== undefined && { description_en: description_en || null }),
       ...(description_fr !== undefined && { description_fr: description_fr || null }),
       ...(location !== undefined && { location: location || null }),
-      ...(start_date !== undefined && { start_date }),
-      ...(end_date !== undefined && { end_date: end_date || null }),
+      ...(start_date !== undefined && { start_date: normalizeMonthDate(start_date) }),
+      ...(end_date !== undefined && { end_date: normalizeMonthDate(end_date) }),
       ...(order !== undefined && { order }),
     })
     .eq("id", id)
@@ -50,37 +52,31 @@ export async function PUT(
     .single();
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error.message);
   }
 
-  return NextResponse.json(data);
+  revalidatePortfolioPages();
+  return apiSuccess(data);
 }
 
 export async function DELETE(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  // Auth check
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  const adminCheck = await requireAdminUser();
+  if (!adminCheck.ok) {
+    return adminCheck.response;
   }
 
   const { id } = await params;
   const adminClient = createAdminClient();
 
-  const { error } = await adminClient
-    .from("experience")
-    .delete()
-    .eq("id", id);
+  const { error } = await adminClient.from("experience").delete().eq("id", id);
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    return apiError(error.message);
   }
 
-  return NextResponse.json({ success: true });
+  revalidatePortfolioPages();
+  return apiSuccess({ success: true });
 }

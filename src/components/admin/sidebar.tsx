@@ -39,6 +39,7 @@ interface SidebarProps {
   locale: string;
   translations: SidebarTranslations;
   onNavigate?: () => void;
+  collapsible?: boolean;
 }
 
 const navItems = [
@@ -55,9 +56,17 @@ const navItems = [
   { key: "settings" as const, href: "/admin/settings", icon: Settings },
 ];
 
-export function AdminSidebar({ locale, translations, onNavigate }: SidebarProps) {
+export function AdminSidebar({
+  locale,
+  translations,
+  onNavigate,
+  collapsible = false,
+}: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const labelClass = collapsible
+    ? "overflow-hidden whitespace-nowrap transition-[max-width,opacity] duration-200 ease-out lg:max-w-0 lg:opacity-0 lg:group-hover:max-w-[12rem] lg:group-hover:opacity-100"
+    : "";
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -68,18 +77,6 @@ export function AdminSidebar({ locale, translations, onNavigate }: SidebarProps)
 
   return (
     <div className="flex h-full flex-col">
-      {/* Logo / Title */}
-      <div className="flex h-16 items-center border-b px-6">
-        <Link
-          href={`/${locale}/admin/dashboard`}
-          className="flex items-center gap-2 font-semibold text-lg"
-          onClick={onNavigate}
-        >
-          <LayoutDashboard className="h-5 w-5" />
-          <span>Admin</span>
-        </Link>
-      </div>
-
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-3 py-4">
         <ul className="flex flex-col gap-1">
@@ -94,14 +91,26 @@ export function AdminSidebar({ locale, translations, onNavigate }: SidebarProps)
                   href={fullHref}
                   onClick={onNavigate}
                   className={cn(
-                    "flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                    "rounded-md py-2 text-sm font-medium transition-colors duration-200",
+                    collapsible
+                      ? "lg:grid lg:grid-cols-[3.5rem_1fr] lg:items-center lg:px-0"
+                      : "flex items-center gap-3 px-3",
                     isActive
                       ? "bg-primary text-primary-foreground"
                       : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                   )}
                 >
-                  <Icon className="h-4 w-4" />
-                  {translations[item.key]}
+                  <span
+                    className={cn(
+                      "flex h-5 w-5 shrink-0 items-center justify-center",
+                      collapsible && "lg:justify-self-center"
+                    )}
+                  >
+                    <Icon className="h-4 w-4 shrink-0" />
+                  </span>
+                  <span className={cn(labelClass, collapsible && "lg:justify-self-start")}>
+                    {translations[item.key]}
+                  </span>
                 </Link>
               </li>
             );
@@ -113,11 +122,25 @@ export function AdminSidebar({ locale, translations, onNavigate }: SidebarProps)
       <div className="border-t p-3">
         <Button
           variant="ghost"
-          className="w-full justify-start gap-3 text-muted-foreground hover:text-destructive"
+          className={cn(
+            "text-muted-foreground transition-colors duration-200 hover:text-destructive",
+            collapsible
+              ? "lg:grid lg:w-full lg:grid-cols-[3.5rem_1fr] lg:items-center lg:px-0"
+              : "w-full justify-start gap-3"
+          )}
           onClick={handleLogout}
         >
-          <LogOut className="h-4 w-4" />
-          {translations.logout}
+          <span
+            className={cn(
+              "flex h-5 w-5 shrink-0 items-center justify-center",
+              collapsible && "lg:justify-self-center"
+            )}
+          >
+            <LogOut className="h-4 w-4" />
+          </span>
+          <span className={cn(labelClass, collapsible && "lg:justify-self-start")}>
+            {translations.logout}
+          </span>
         </Button>
       </div>
     </div>

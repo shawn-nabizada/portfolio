@@ -17,6 +17,10 @@ jobs:
   preflight:
     name: Preflight Checks
     runs-on: ubuntu-latest
+    env:
+      NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+      NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+      NEXT_PUBLIC_SITE_URL: ${{ secrets.NEXT_PUBLIC_SITE_URL }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -32,6 +36,19 @@ jobs:
 
       - name: Lint
         run: npm run lint
+
+      - name: Validate preflight build env
+        run: |
+          missing=0
+          for key in NEXT_PUBLIC_SUPABASE_URL NEXT_PUBLIC_SUPABASE_ANON_KEY NEXT_PUBLIC_SITE_URL; do
+            if [ -z "${!key:-}" ]; then
+              echo "::error::Missing required repository secret: $key."
+              missing=1
+            fi
+          done
+          if [ "$missing" -ne 0 ]; then
+            exit 1
+          fi
 
       - name: Build
         run: npm run build

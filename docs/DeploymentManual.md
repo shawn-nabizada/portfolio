@@ -122,6 +122,12 @@ In GitHub -> repository -> Settings -> Secrets and variables -> Actions, add:
   - Production Postgres connection string used by migration job.
 - `VERCEL_DEPLOY_HOOK_URL`
   - Production deploy hook URL from Vercel.
+- `NEXT_PUBLIC_SUPABASE_URL`
+  - Public Supabase URL used during CI preflight build.
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+  - Public anon key used during CI preflight build.
+- `NEXT_PUBLIC_SITE_URL`
+  - Public production domain used during CI preflight build.
 
 Keep application runtime secrets in Vercel env settings, not GitHub Actions.
 

@@ -65,6 +65,9 @@ Required GitHub Actions secrets:
 
 - `SUPABASE_DB_URL`
 - `VERCEL_DEPLOY_HOOK_URL`
+- `NEXT_PUBLIC_SUPABASE_URL`
+- `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+- `NEXT_PUBLIC_SITE_URL`
 
 Required Vercel production environment variables:
 

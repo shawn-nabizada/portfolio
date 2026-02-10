@@ -1,15 +1,18 @@
 import type { Locale, Translations } from "@/lib/i18n";
-import type { Profile } from "@/lib/types/database";
+import type { Profile, Resume } from "@/lib/types/database";
 import { AnimatedSection } from "@/components/public/animated-section";
+import { ResumeDownloads } from "@/components/public/resume-section";
 
 export function AboutSection({
   locale,
   profile,
   t,
+  resumes,
 }: {
   locale: Locale;
   profile: Profile | null;
   t: Pick<Translations, "nav">;
+  resumes: Resume[];
 }) {
   const bio = locale === "fr" ? profile?.bio_fr : profile?.bio_en;
   const bioText = bio || profile?.bio_en || "";
@@ -33,14 +36,8 @@ export function AboutSection({
             {bioText}
           </p>
         </div>
-        <p className="mt-4 text-xs text-terminal-dim">
-          <span className="text-terminal-green">shawn_nabizada@portfolio</span>
-          <span className="text-terminal-dim">:</span>
-          <span className="text-terminal-cyan">~</span>
-          <span className="text-terminal-dim">$ </span>
-          <span className="inline-block h-[1em] w-0 border-l-2 align-middle" style={{ borderLeftColor: "var(--terminal-green)", animation: "blink 1s step-end infinite" }} aria-hidden="true" />
-        </p>
       </div>
+      <ResumeDownloads locale={locale} items={resumes} />
     </AnimatedSection>
   );
 }

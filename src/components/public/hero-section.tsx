@@ -42,8 +42,8 @@ export function HeroSection({
       {/* CRT vignette — dark only */}
       <div className="crt-vignette pointer-events-none absolute inset-0 hidden dark:block" aria-hidden="true" />
 
-      <div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-center md:justify-between" style={{ perspective: "800px" }}>
-        <div className="space-y-4" style={{ transformStyle: "preserve-3d" }}>
+      <div className="relative z-10 flex flex-col gap-8 md:flex-row md:items-center md:justify-between md:pr-4 lg:pr-8" style={{ perspective: "800px" }}>
+        <div className="space-y-4 md:min-w-0 md:flex-1" style={{ transformStyle: "preserve-3d" }}>
           <p className="font-mono text-xs uppercase tracking-[0.2em] text-terminal-dim">
             {profile?.location ? `$ ${profile.location}` : ""}
           </p>
@@ -52,6 +52,7 @@ export function HeroSection({
               text={title}
               speed={90}
               delay={300}
+              blinkWhenDone={false}
               onDone={() => setTitleDone(true)}
             />
           </h1>
@@ -75,7 +76,7 @@ export function HeroSection({
           <img
             src={profile.avatar_url}
             alt={profile.full_name || fallbackAvatarAlt}
-            className="avatar-float h-32 w-32 rounded-full border-2 border-terminal-green/40 object-cover shadow-[0_0_20px_var(--terminal-glow)]"
+            className="avatar-float mx-auto h-64 w-64 shrink-0 self-center rounded-full border-2 border-terminal-green/40 object-cover shadow-[0_0_20px_var(--terminal-glow)] md:mx-0 md:self-auto md:-translate-x-2 lg:-translate-x-3"
           />
         ) : null}
       </div>

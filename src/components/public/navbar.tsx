@@ -17,7 +17,6 @@ const navOrder: Array<keyof Translations["nav"]> = [
   "hobbies",
   "testimonials",
   "contact",
-  "resume",
 ];
 
 export function PublicNavbar({
@@ -73,10 +72,10 @@ export function PublicNavbar({
       )}
       onKeyDown={handleKeyDown}
     >
-      <div className="mx-auto flex h-16 items-center justify-between px-4 sm:px-6 lg:hidden">
+      <div className="mx-auto flex h-16 items-center justify-between px-4 sm:px-6 min-[1225px]:hidden">
         <Link
           href={`/${locale}`}
-          className="font-mono text-md text-terminal-green tracking-tight"
+          className="max-w-[calc(100vw-5.5rem)] truncate font-mono text-md text-terminal-green tracking-tight"
         >
           shawn_nabizada@portfolio:~$
         </Link>
@@ -91,41 +90,43 @@ export function PublicNavbar({
         </button>
       </div>
 
-      <div className="relative mx-auto hidden h-16 max-w-7xl items-center px-6 xl:px-8 lg:flex">
-        <Link
-          href={`/${locale}`}
-          className="z-10 -translate-x-3 font-mono text-md text-terminal-green tracking-tight whitespace-nowrap xl:-translate-x-46"
-        >
-          shawn_nabizada@portfolio:~$
-        </Link>
-
-        <div className="pointer-events-none absolute inset-x-0 inset-y-0 flex items-center justify-center px-10 xl:px-30">
-          <nav
-            aria-label="Main navigation"
-            className="pointer-events-auto flex w-full items-center justify-center gap-2 overflow-x-auto overflow-y-visible [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden xl:gap-3"
+      <div className="mx-auto hidden h-16 w-full max-w-[min(96vw,112rem)] items-center gap-[clamp(0.5rem,1.4vw,1.6rem)] px-4 xl:px-6 2xl:px-8 min-[1225px]:flex">
+        <div className="min-w-0 basis-[clamp(11rem,22vw,24rem)] shrink-0">
+          <Link
+            href={`/${locale}`}
+            className="block truncate font-mono text-md text-terminal-green tracking-tight"
           >
+            shawn_nabizada@portfolio:~$
+          </Link>
+        </div>
+
+        <nav
+          aria-label="Main navigation"
+          className="min-w-0 flex-1 overflow-x-auto overflow-y-visible px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+        >
+          <div className="mx-auto flex w-max items-center justify-center gap-[clamp(0.3rem,0.75vw,0.85rem)]">
             {navOrder.map((item) => (
               <a
                 key={item}
                 href={`#${item}`}
-                className="nav-link px-1 py-1 font-mono text-[13px] text-muted-foreground transition-colors hover:text-terminal-green whitespace-nowrap xl:text-[14px]"
+                className="nav-link px-1 py-1 font-mono text-[clamp(12px,0.8vw,14px)] text-muted-foreground transition-colors hover:text-terminal-green whitespace-nowrap"
               >
                 ./{nav[item].toLowerCase()}
               </a>
             ))}
-          </nav>
-        </div>
+          </div>
+        </nav>
 
-        <div className="z-10 ml-auto flex translate-x-3 items-center gap-2 xl:translate-x-6">
-          <LocaleToggle locale={locale} />
+        <div className="flex basis-[clamp(11rem,22vw,24rem)] shrink-0 items-center justify-end gap-2 xl:gap-3">
           <ModeToggle />
+          <LocaleToggle locale={locale} />
         </div>
       </div>
 
       <nav
         aria-label="Mobile navigation"
         className={cn(
-          "border-t border-terminal-border bg-background px-4 py-4 lg:hidden",
+          "border-t border-terminal-border bg-background px-4 py-4 min-[1225px]:hidden",
           open ? "block" : "hidden"
         )}
       >

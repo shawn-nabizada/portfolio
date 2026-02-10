@@ -13,7 +13,6 @@ import { EducationSection } from "@/components/public/education-section";
 import { HobbiesSection } from "@/components/public/hobbies-section";
 import { TestimonialsSection } from "@/components/public/testimonials-section";
 import { ContactSection } from "@/components/public/contact-section";
-import { ResumeSection } from "@/components/public/resume-section";
 import { TerminalTrigger } from "@/components/public/terminal/terminal-trigger";
 
 
@@ -95,10 +94,20 @@ export async function generateMetadata({
     const description =
       localizedValue(data.settings.site_description, typedLocale) ||
       fallbackDescription;
+    const avatarIcon = data.profile?.avatar_url || undefined;
 
     return {
       title,
       description,
+      ...(avatarIcon
+        ? {
+            icons: {
+              icon: avatarIcon,
+              shortcut: avatarIcon,
+              apple: avatarIcon,
+            },
+          }
+        : {}),
       openGraph: {
         title,
         description,
@@ -137,6 +146,8 @@ export default async function PublicPage({
     settings: data.settings,
     socialLinks: data.socialLinks,
   });
+  const contactHoneypotEnabled = data.settings.contact_honeypot_enabled === true;
+  const contactHoneypotVisible = data.settings.contact_honeypot_visible === true;
 
   return (
     <>
@@ -151,7 +162,12 @@ export default async function PublicPage({
       <HeroSection locale={typedLocale} profile={data.profile} settings={data.settings} />
       <SocialLinksSection links={data.socialLinks} />
       <div className="section-divider" aria-hidden="true" />
-      <AboutSection locale={typedLocale} profile={data.profile} t={{ nav: t.nav }} />
+      <AboutSection
+        locale={typedLocale}
+        profile={data.profile}
+        t={{ nav: t.nav }}
+        resumes={data.resumes}
+      />
       <SkillsSection categories={data.skillsByCategory} t={{ skills: t.skills }} />
       <div className="section-divider" aria-hidden="true" />
       <ProjectsSection projects={data.projects} t={{ projects: t.projects }} />
@@ -173,10 +189,19 @@ export default async function PublicPage({
         locale={typedLocale}
         items={data.testimonials}
         t={{ testimonials: t.testimonials, common: t.common }}
+        settings={{
+          honeypotEnabled: contactHoneypotEnabled,
+          honeypotVisible: contactHoneypotVisible,
+        }}
       />
-      <ContactSection locale={typedLocale} t={{ contact: t.contact, common: t.common }} />
-      <div className="section-divider" aria-hidden="true" />
-      <ResumeSection locale={typedLocale} items={data.resumes} t={{ resume: t.resume }} />
+      <ContactSection
+        locale={typedLocale}
+        t={{ contact: t.contact, common: t.common }}
+        settings={{
+          honeypotEnabled: contactHoneypotEnabled,
+          honeypotVisible: contactHoneypotVisible,
+        }}
+      />
       <TerminalTrigger locale={typedLocale} data={data} />
     </>
   );

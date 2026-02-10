@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
 import { revalidatePortfolioPages } from "@/lib/revalidation";
+import { TESTIMONIAL_MAX_CHARS } from "@/lib/constants/testimonials";
 
 export async function PUT(
   request: NextRequest,
@@ -25,6 +26,16 @@ export async function PUT(
     status !== "rejected"
   ) {
     return apiError("Invalid status", 400);
+  }
+
+  if (
+    (typeof content_en === "string" && content_en.trim().length > TESTIMONIAL_MAX_CHARS) ||
+    (typeof content_fr === "string" && content_fr.trim().length > TESTIMONIAL_MAX_CHARS)
+  ) {
+    return apiError(
+      `testimonial content must be ${TESTIMONIAL_MAX_CHARS} characters or fewer`,
+      400
+    );
   }
 
   const adminClient = createAdminClient();

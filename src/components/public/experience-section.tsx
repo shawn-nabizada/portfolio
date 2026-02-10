@@ -5,7 +5,19 @@ import { AnimatedSection } from "@/components/public/animated-section";
 function formatMonthYear(value: string, locale: Locale): string {
   if (!value) return "";
   const normalized = value.length === 7 ? `${value}-01` : value;
-  const parsed = new Date(`${normalized}T00:00:00`);
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return value;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return value;
+  }
+
+  const parsed = new Date(Date.UTC(year, month - 1, day));
   if (Number.isNaN(parsed.getTime())) {
     return value;
   }
@@ -13,6 +25,7 @@ function formatMonthYear(value: string, locale: Locale): string {
   return parsed.toLocaleDateString(locale === "fr" ? "fr-CA" : "en-US", {
     year: "numeric",
     month: "short",
+    timeZone: "UTC",
   });
 }
 
@@ -58,7 +71,7 @@ export function ExperienceSection({
                 </p>
               </div>
               {(locale === "fr" ? item.description_fr : item.description_en) ? (
-                <p className="mt-3 text-base leading-relaxed text-muted-foreground">
+                <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
                   {(locale === "fr" ? item.description_fr : item.description_en) ||
                     item.description_en}
                 </p>

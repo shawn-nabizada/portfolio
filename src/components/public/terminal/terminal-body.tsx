@@ -22,6 +22,7 @@ export function TerminalBody({
 
   const {
     lines,
+    activeGameView,
     input,
     setInputValue,
     submitInput,
@@ -77,10 +78,10 @@ export function TerminalBody({
   }, [activeSuggestionIndex, suggestions.length]);
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col rounded-b-xl bg-card/95 p-4">
+    <div className="flex min-h-0 flex-1 flex-col rounded-b-xl bg-card/95 p-3 sm:p-4">
       <div
         ref={outputRef}
-        className="min-h-0 flex-1 overflow-y-auto rounded-md border border-terminal-border/60 bg-background/80 p-3 font-mono text-sm"
+        className="min-h-0 flex-1 overflow-y-auto rounded-md border border-terminal-border/60 bg-background/80 p-2.5 font-mono text-[13px] sm:p-3 sm:text-sm"
       >
         {lines.map((line) => (
           <p
@@ -88,7 +89,7 @@ export function TerminalBody({
             className={cn(
               "leading-relaxed",
               line.preserveWhitespace
-                ? "whitespace-pre"
+                ? "whitespace-pre-wrap sm:whitespace-pre"
                 : "whitespace-pre-wrap break-words",
               toneClassName(line.tone)
             )}
@@ -96,10 +97,35 @@ export function TerminalBody({
             {line.text || " "}
           </p>
         ))}
+
+        {activeGameView?.game === "labyrinth" ? (
+          <div className={cn("mt-2 rounded-md border border-terminal-border/60 bg-background/75 p-2")}>
+            <p className={cn("leading-relaxed", toneClassName("system"))}>
+              {activeGameView.statusLine}
+            </p>
+            <p className={cn("leading-relaxed", toneClassName("muted"))}>
+              {activeGameView.metaLine}
+            </p>
+            {activeGameView.noticeLine ? (
+              <p className={cn("leading-relaxed", toneClassName(activeGameView.noticeLine.tone))}>
+                {activeGameView.noticeLine.text}
+              </p>
+            ) : null}
+            <p className={cn("leading-relaxed")}>{" "}</p>
+            {activeGameView.boardLines.map((row, index) => (
+              <p
+                key={`active-labyrinth-row-${index}`}
+                className={cn("leading-relaxed whitespace-pre-wrap sm:whitespace-pre")}
+              >
+                {row}
+              </p>
+            ))}
+          </div>
+        ) : null}
       </div>
 
       <form
-        className="mt-3 flex items-center gap-2 border-t border-terminal-border/60 pt-3"
+        className="mt-3 flex flex-wrap items-start gap-x-2 gap-y-1.5 border-t border-terminal-border/60 pt-3 sm:items-center"
         onSubmit={(event) => {
           event.preventDefault();
           if (isComposing) return;
@@ -110,7 +136,7 @@ export function TerminalBody({
           void submitInput();
         }}
       >
-        <span className="font-mono text-xs text-terminal-cyan">{prompt}</span>
+        <span className="w-full break-words font-mono text-[12px] text-terminal-cyan sm:w-auto sm:shrink-0 sm:text-sm sm:leading-8">{prompt}</span>
         <input
           ref={inputRef}
           type={currentInputType}
@@ -144,7 +170,7 @@ export function TerminalBody({
           onCompositionStart={() => setIsComposing(true)}
           onCompositionEnd={() => setIsComposing(false)}
           disabled={isInputDisabled}
-          className="h-8 flex-1 border-none bg-transparent font-mono text-sm text-foreground outline-none disabled:opacity-50"
+          className="h-8 w-full border-none bg-transparent font-mono text-[13px] text-foreground outline-none disabled:opacity-50 sm:flex-1 sm:text-sm"
           autoComplete={currentInputType === "password" ? "current-password" : "off"}
           autoCapitalize="none"
           autoCorrect="off"
@@ -165,7 +191,7 @@ export function TerminalBody({
         <div
           ref={suggestionsContainerRef}
           onMouseLeave={() => setHoveredSuggestionIndex(null)}
-          className="mt-2 max-h-40 overflow-y-auto rounded-md border border-terminal-border/60 bg-background/90"
+          className="mt-2 max-h-36 overflow-y-auto rounded-md border border-terminal-border/60 bg-background/90 sm:max-h-40"
         >
           <ul role="listbox" aria-label={locale === "fr" ? "Suggestions de commande" : "Command suggestions"}>
             {suggestions.map((suggestion, index) => {

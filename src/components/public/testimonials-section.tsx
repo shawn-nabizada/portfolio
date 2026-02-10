@@ -6,6 +6,7 @@ import type { Locale, Translations } from "@/lib/i18n";
 import type { Testimonial } from "@/lib/types/database";
 import { AnimatedSection } from "@/components/public/animated-section";
 import { fetchMutation } from "@/lib/http/mutation";
+import { TESTIMONIAL_MAX_CHARS } from "@/lib/constants/testimonials";
 import { toast } from "sonner";
 
 const TESTIMONIALS_PER_PAGE = 4;
@@ -22,17 +23,25 @@ export function TestimonialsSection({
   locale,
   items,
   t,
+  settings,
 }: {
   locale: Locale;
   items: Testimonial[];
   t: Pick<Translations, "testimonials" | "common">;
+  settings?: {
+    honeypotEnabled?: boolean;
+    honeypotVisible?: boolean;
+  };
 }) {
+  const honeypotEnabled = settings?.honeypotEnabled === true;
+  const honeypotVisible = honeypotEnabled && settings?.honeypotVisible === true;
   const [form, setForm] = useState({
     author_name: "",
     author_title: "",
     author_company: "",
-    content_en: "",
-    content_fr: "",
+    content: "",
+    website: "",
+    formStartedAt: Date.now(),
   });
   const [submitting, setSubmitting] = useState(false);
   const [page, setPage] = useState(1);
@@ -53,18 +62,32 @@ export function TestimonialsSection({
     setSubmitting(true);
 
     try {
+      const payload = {
+        author_name: form.author_name,
+        author_title: form.author_title,
+        author_company: form.author_company,
+        content: form.content,
+        ...(honeypotEnabled
+          ? {
+            website: form.website,
+            form_started_at: form.formStartedAt,
+          }
+          : {}),
+      };
+
       await fetchMutation("/api/testimonials", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       toast.success(t.testimonials.submitSuccess);
       setForm({
         author_name: "",
         author_title: "",
         author_company: "",
-        content_en: "",
-        content_fr: "",
+        content: "",
+        website: "",
+        formStartedAt: Date.now(),
       });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
@@ -161,7 +184,7 @@ export function TestimonialsSection({
       <form onSubmit={submit} className="terminal-card space-y-4 p-5">
         <h3 className="terminal-heading text-lg font-semibold text-foreground">{t.testimonials.submit}</h3>
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-4">
+          <div className="space-y-6">
             <label htmlFor="testimonial-author-name" className="terminal-label">
               &gt; {t.testimonials.authorName}
             </label>
@@ -173,7 +196,7 @@ export function TestimonialsSection({
               required
             />
           </div>
-          <div className="space-y-4">
+          <div className="space-y-6">
             <label htmlFor="testimonial-author-title" className="terminal-label">
               &gt; {t.testimonials.authorTitle}
             </label>
@@ -185,7 +208,7 @@ export function TestimonialsSection({
             />
           </div>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-6">
           <label htmlFor="testimonial-author-company" className="terminal-label">
             &gt; {t.testimonials.authorCompany}
           </label>
@@ -196,31 +219,50 @@ export function TestimonialsSection({
             onChange={(e) => setForm((f) => ({ ...f, author_company: e.target.value }))}
           />
         </div>
-        <div className="space-y-4">
-          <label htmlFor="testimonial-content-en" className="terminal-label">
-            &gt; {t.testimonials.content} ({locale === "fr" ? "anglais" : "English"})
+        <div className="space-y-6">
+          <label htmlFor="testimonial-content" className="terminal-label">
+            &gt; {t.testimonials.content}
           </label>
           <textarea
-            id="testimonial-content-en"
+            id="testimonial-content"
             className="terminal-textarea"
-            value={form.content_en}
-            onChange={(e) => setForm((f) => ({ ...f, content_en: e.target.value }))}
+            value={form.content}
+            onChange={(e) => setForm((f) => ({ ...f, content: e.target.value }))}
+            maxLength={TESTIMONIAL_MAX_CHARS}
             required
             rows={3}
           />
+          <p className="text-right text-xs text-terminal-dim">
+            {form.content.length}/{TESTIMONIAL_MAX_CHARS}
+          </p>
         </div>
-        <div className="space-y-4">
-          <label htmlFor="testimonial-content-fr" className="terminal-label">
-            &gt; {t.testimonials.content} ({locale === "fr" ? "français" : "French"})
-          </label>
-          <textarea
-            id="testimonial-content-fr"
-            className="terminal-textarea"
-            value={form.content_fr}
-            onChange={(e) => setForm((f) => ({ ...f, content_fr: e.target.value }))}
-            rows={3}
-          />
-        </div>
+        {honeypotEnabled ? (
+          <div
+            className={
+              honeypotVisible
+                ? "space-y-2"
+                : "pointer-events-none absolute left-[-10000px] top-auto h-px w-px overflow-hidden opacity-0"
+            }
+            aria-hidden={!honeypotVisible}
+          >
+            <label
+              htmlFor="testimonial-website"
+              className={honeypotVisible ? "terminal-label" : "sr-only"}
+            >
+              &gt; {t.testimonials.honeypotLabel}
+            </label>
+            <input
+              id="testimonial-website"
+              name="website"
+              autoComplete="off"
+              tabIndex={-1}
+              className="terminal-input"
+              value={form.website}
+              onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+              placeholder={honeypotVisible ? t.testimonials.honeypotPlaceholder : ""}
+            />
+          </div>
+        ) : null}
         <button type="submit" className="terminal-btn" disabled={submitting}>
           {submitting ? t.common.loading : t.testimonials.submit}
         </button>

@@ -1,0 +1,1 @@
+export const TESTIMONIAL_MAX_CHARS = 200;

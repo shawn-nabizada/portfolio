@@ -184,7 +184,7 @@ export function TerminalModal({
   return (
     <div
       className={cn(
-        "fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-3 backdrop-blur-sm transition-opacity duration-200 ease-out",
+        "fixed inset-0 z-[80] flex items-center justify-center bg-black/55 p-2 backdrop-blur-sm transition-opacity duration-200 ease-out sm:p-3",
         isVisible ? "opacity-100" : "pointer-events-none opacity-0"
       )}
       onMouseDown={(event) => {
@@ -200,15 +200,15 @@ export function TerminalModal({
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cn(
-          "flex h-[80vh] w-[95vw] flex-col overflow-hidden rounded-xl border border-terminal-border bg-card shadow-[0_0_25px_var(--terminal-glow)] transition-all duration-200 ease-out sm:h-[450px] sm:w-[90vw] lg:h-[608px] lg:w-[945px] lg:max-h-[90vh] lg:max-w-[95vw]",
+          "mt-3 flex h-[80dvh] w-[98vw] max-h-[80dvh] flex-col overflow-hidden rounded-xl border border-terminal-border bg-card shadow-[0_0_25px_var(--terminal-glow)] transition-all duration-200 ease-out sm:mt-0 sm:h-[88vh] sm:w-[94vw] sm:max-h-[88vh] lg:h-[608px] lg:w-[945px] lg:max-h-[90vh] lg:max-w-[95vw]",
           isVisible ? "translate-y-0 scale-100 opacity-100" : "translate-y-3 scale-[0.98] opacity-0"
         )}
       >
-        <div className="flex items-center justify-between border-b border-terminal-border/70 bg-background/90 px-4 py-2.5">
+        <div className="flex items-center justify-between border-b border-terminal-border/70 bg-background/90 px-3 py-2 sm:px-4 sm:py-2.5">
           <div className="flex items-center gap-2">
-            <span className="h-2.5 w-2.5 rounded-full bg-red-500/80" aria-hidden="true" />
-            <span className="h-2.5 w-2.5 rounded-full bg-yellow-500/80" aria-hidden="true" />
-            <span className="h-2.5 w-2.5 rounded-full bg-emerald-500/80" aria-hidden="true" />
+            <span className="h-2 w-2 rounded-full bg-red-500/80 sm:h-2.5 sm:w-2.5" aria-hidden="true" />
+            <span className="h-2 w-2 rounded-full bg-yellow-500/80 sm:h-2.5 sm:w-2.5" aria-hidden="true" />
+            <span className="h-2 w-2 rounded-full bg-emerald-500/80 sm:h-2.5 sm:w-2.5" aria-hidden="true" />
             <span id={titleId} className="ml-2 font-mono text-xs text-terminal-dim">
               portfolio-sh
             </span>
@@ -218,7 +218,7 @@ export function TerminalModal({
             ref={closeButtonRef}
             type="button"
             onClick={onClose}
-            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            className="rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground sm:p-1.5"
             aria-label={locale === "fr" ? "Fermer le terminal" : "Close terminal"}
           >
             <X className="h-4 w-4" />

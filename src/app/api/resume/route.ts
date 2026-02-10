@@ -65,18 +65,24 @@ export async function POST(request: NextRequest) {
     return apiError(existingError.message);
   }
 
+  const existingPaths = new Set(
+    (existingRows ?? [])
+      .map((row) => extractStoragePath(row.file_url))
+      .filter((value): value is string => Boolean(value))
+  );
+
   const safeFileName = file.name
     .trim()
     .replace(/\s+/g, "-")
     .replace(/[^a-zA-Z0-9._-]/g, "");
   const finalFileName = safeFileName || `resume-${language}.pdf`;
-  const filePath = `${language}/${Date.now()}-${finalFileName}`;
+  const filePath = `${language}/${finalFileName}`;
 
   const { error: uploadError } = await adminClient.storage
     .from("resumes")
     .upload(filePath, file, {
       cacheControl: "3600",
-      upsert: false,
+      upsert: true,
       contentType: file.type || "application/octet-stream",
     });
 
@@ -99,23 +105,23 @@ export async function POST(request: NextRequest) {
     .single();
 
   if (error) {
-    const { error: rollbackStorageError } = await adminClient.storage
-      .from("resumes")
-      .remove([filePath]);
-    if (rollbackStorageError) {
-      console.error("Failed to rollback uploaded resume after DB insert error", {
-        filePath,
-        rollbackStorageError,
-      });
+    if (!existingPaths.has(filePath)) {
+      const { error: rollbackStorageError } = await adminClient.storage
+        .from("resumes")
+        .remove([filePath]);
+      if (rollbackStorageError) {
+        console.error("Failed to rollback uploaded resume after DB insert error", {
+          filePath,
+          rollbackStorageError,
+        });
+      }
     }
     return apiError(error.message);
   }
 
   if (existingRows && existingRows.length > 0) {
     const oldRowIds = existingRows.map((row) => row.id);
-    const pathsToRemove = existingRows
-      .map((row) => extractStoragePath(row.file_url))
-      .filter((value): value is string => Boolean(value));
+    const pathsToRemove = Array.from(existingPaths).filter((path) => path !== filePath);
 
     const { error: oldRowsDeleteError } = await adminClient
       .from("resumes")

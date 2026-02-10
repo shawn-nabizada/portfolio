@@ -9,15 +9,24 @@ import { toast } from "sonner";
 export function ContactSection({
   locale,
   t,
+  settings,
 }: {
   locale: Locale;
   t: Pick<Translations, "contact" | "common">;
+  settings?: {
+    honeypotEnabled?: boolean;
+    honeypotVisible?: boolean;
+  };
 }) {
+  const honeypotEnabled = settings?.honeypotEnabled === true;
+  const honeypotVisible = honeypotEnabled && settings?.honeypotVisible === true;
   const [form, setForm] = useState({
     name: "",
     email: "",
     subject: "",
     message: "",
+    website: "",
+    formStartedAt: Date.now(),
   });
   const [sending, setSending] = useState(false);
 
@@ -26,13 +35,33 @@ export function ContactSection({
     setSending(true);
 
     try {
+      const payload = {
+        name: form.name,
+        email: form.email,
+        subject: form.subject,
+        message: form.message,
+        ...(honeypotEnabled
+          ? {
+            website: form.website,
+            form_started_at: form.formStartedAt,
+          }
+          : {}),
+      };
+
       await fetchMutation("/api/messages", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       toast.success(t.contact.success);
-      setForm({ name: "", email: "", subject: "", message: "" });
+      setForm({
+        name: "",
+        email: "",
+        subject: "",
+        message: "",
+        website: "",
+        formStartedAt: Date.now(),
+      });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.contact.error);
     } finally {
@@ -51,7 +80,7 @@ export function ContactSection({
 
       <form onSubmit={submit} className="terminal-card grid gap-4 p-5">
         <div className="grid gap-4 sm:grid-cols-2">
-          <div className="space-y-4">
+          <div className="space-y-6">
             <label htmlFor="contact-name" className="terminal-label">
               &gt; {t.contact.name}
             </label>
@@ -64,7 +93,7 @@ export function ContactSection({
               placeholder={t.contact.namePlaceholder}
             />
           </div>
-          <div className="space-y-4">
+          <div className="space-y-6">
             <label htmlFor="contact-email" className="terminal-label">
               &gt; {t.contact.email}
             </label>
@@ -79,7 +108,7 @@ export function ContactSection({
             />
           </div>
         </div>
-        <div className="space-y-4">
+        <div className="space-y-6">
           <label htmlFor="contact-subject" className="terminal-label">
             &gt; {t.contact.subject}
           </label>
@@ -91,7 +120,7 @@ export function ContactSection({
             placeholder={t.contact.subjectPlaceholder}
           />
         </div>
-        <div className="space-y-4">
+        <div className="space-y-6">
           <label htmlFor="contact-message" className="terminal-label">
             &gt; {t.contact.message}
           </label>
@@ -105,6 +134,33 @@ export function ContactSection({
             rows={5}
           />
         </div>
+        {honeypotEnabled ? (
+          <div
+            className={
+              honeypotVisible
+                ? "space-y-2"
+                : "pointer-events-none absolute left-[-10000px] top-auto h-px w-px overflow-hidden opacity-0"
+            }
+            aria-hidden={!honeypotVisible}
+          >
+            <label
+              htmlFor="contact-website"
+              className={honeypotVisible ? "terminal-label" : "sr-only"}
+            >
+              &gt; {t.contact.honeypotLabel}
+            </label>
+            <input
+              id="contact-website"
+              name="website"
+              autoComplete="off"
+              tabIndex={-1}
+              className="terminal-input"
+              value={form.website}
+              onChange={(e) => setForm((f) => ({ ...f, website: e.target.value }))}
+              placeholder={honeypotVisible ? t.contact.honeypotPlaceholder : ""}
+            />
+          </div>
+        ) : null}
         <button type="submit" className="terminal-btn" disabled={sending}>
           {sending ? t.contact.sending : `[${locale === "fr" ? "ENTRÉE" : "ENTER"}] ${t.contact.send}`}
         </button>

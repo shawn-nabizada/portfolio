@@ -9,12 +9,14 @@ export function TypewriterText({
   delay = 0,
   className,
   onDone,
+  blinkWhenDone = true,
 }: {
   text: string;
   speed?: number;
   delay?: number;
   className?: string;
   onDone?: () => void;
+  blinkWhenDone?: boolean;
 }) {
   const prefersReducedMotion = useReducedMotion();
   const [displayed, setDisplayed] = useState(prefersReducedMotion ? text : "");
@@ -68,8 +70,8 @@ export function TypewriterText({
         className="ml-0.5 inline-block h-[1em] w-0 border-l-2 align-middle"
         style={{
           borderLeftColor: "var(--terminal-green)",
-          animation: done ? "blink 1s step-end infinite" : "none",
-          opacity: started ? 1 : 0,
+          animation: done && blinkWhenDone ? "blink 1s step-end infinite" : "none",
+          opacity: started && (!done || blinkWhenDone) ? 1 : 0,
         }}
       />
     </span>

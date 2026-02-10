@@ -36,6 +36,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MonthYearField } from "@/components/admin/month-year-field";
 import { fetchJson, fetchMutation } from "@/lib/http/mutation";
 import { toast } from "sonner";
 
@@ -58,12 +59,14 @@ function EducationDialog({
   onOpenChange,
   education,
   onSave,
+  locale,
   t,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   education: Education | null;
   onSave: (data: EducationFormData) => Promise<void>;
+  locale: Locale;
   t: ReturnType<typeof getTranslations>;
 }) {
   const [form, setForm] = useState<EducationFormData>({
@@ -112,6 +115,15 @@ function EducationDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.start_date) {
+      toast.error(
+        locale === "fr"
+          ? "La date de début est requise."
+          : "Start date is required."
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       await onSave(form);
@@ -219,19 +231,14 @@ function EducationDialog({
             />
           </div>
 
-          {/* Start Date */}
-          <div className="space-y-2">
-            <Label htmlFor="edu-start-date">{t.education.startDate}</Label>
-            <Input
-              id="edu-start-date"
-              type="month"
-              value={form.start_date}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, start_date: e.target.value }))
-              }
-              required
-            />
-          </div>
+          <MonthYearField
+            id="edu-start-date"
+            label={t.education.startDate}
+            value={form.start_date}
+            onChange={(value) => setForm((f) => ({ ...f, start_date: value }))}
+            locale={locale}
+            required
+          />
 
           {/* Currently Studying */}
           <div className="flex items-center space-x-2">
@@ -253,17 +260,14 @@ function EducationDialog({
 
           {/* End Date */}
           {!form.is_current && (
-            <div className="space-y-2">
-              <Label htmlFor="edu-end-date">{t.education.endDate}</Label>
-              <Input
-                id="edu-end-date"
-                type="month"
-                value={form.end_date}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, end_date: e.target.value }))
-                }
-              />
-            </div>
+            <MonthYearField
+              id="edu-end-date"
+              label={t.education.endDate}
+              value={form.end_date}
+              onChange={(value) => setForm((f) => ({ ...f, end_date: value }))}
+              locale={locale}
+              allowClear
+            />
           )}
 
           {/* Order */}
@@ -290,7 +294,7 @@ function EducationDialog({
             >
               {t.common.cancel}
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || !form.start_date}>
               {saving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -581,6 +585,7 @@ export default function AdminEducationPage() {
         onOpenChange={setDialogOpen}
         education={editingEducation}
         onSave={handleSave}
+        locale={locale as Locale}
         t={t}
       />
 

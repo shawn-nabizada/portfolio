@@ -37,6 +37,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MonthYearField } from "@/components/admin/month-year-field";
 import { fetchJson, fetchMutation } from "@/lib/http/mutation";
 import { toast } from "sonner";
 
@@ -59,12 +60,14 @@ function ExperienceDialog({
   onOpenChange,
   experience,
   onSave,
+  locale,
   t,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   experience: Experience | null;
   onSave: (data: ExperienceFormData) => Promise<void>;
+  locale: Locale;
   t: ReturnType<typeof getTranslations>;
 }) {
   const [form, setForm] = useState<ExperienceFormData>({
@@ -113,6 +116,15 @@ function ExperienceDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.start_date) {
+      toast.error(
+        locale === "fr"
+          ? "La date de début est requise."
+          : "Start date is required."
+      );
+      return;
+    }
+
     setSaving(true);
     try {
       await onSave(form);
@@ -220,19 +232,14 @@ function ExperienceDialog({
             />
           </div>
 
-          {/* Start Date */}
-          <div className="space-y-2">
-            <Label htmlFor="exp-start-date">{t.experience.startDate}</Label>
-            <Input
-              id="exp-start-date"
-              type="month"
-              value={form.start_date}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, start_date: e.target.value }))
-              }
-              required
-            />
-          </div>
+          <MonthYearField
+            id="exp-start-date"
+            label={t.experience.startDate}
+            value={form.start_date}
+            onChange={(value) => setForm((f) => ({ ...f, start_date: value }))}
+            locale={locale}
+            required
+          />
 
           {/* Current Position */}
           <div className="flex items-center space-x-2">
@@ -254,17 +261,14 @@ function ExperienceDialog({
 
           {/* End Date */}
           {!form.is_current && (
-            <div className="space-y-2">
-              <Label htmlFor="exp-end-date">{t.experience.endDate}</Label>
-              <Input
-                id="exp-end-date"
-                type="month"
-                value={form.end_date}
-                onChange={(e) =>
-                  setForm((f) => ({ ...f, end_date: e.target.value }))
-                }
-              />
-            </div>
+            <MonthYearField
+              id="exp-end-date"
+              label={t.experience.endDate}
+              value={form.end_date}
+              onChange={(value) => setForm((f) => ({ ...f, end_date: value }))}
+              locale={locale}
+              allowClear
+            />
           )}
 
           {/* Order */}
@@ -291,7 +295,7 @@ function ExperienceDialog({
             >
               {t.common.cancel}
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button type="submit" disabled={saving || !form.start_date}>
               {saving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -587,6 +591,7 @@ export default function AdminExperiencePage() {
         onOpenChange={setDialogOpen}
         experience={editingExperience}
         onSave={handleSave}
+        locale={locale as Locale}
         t={t}
       />
 

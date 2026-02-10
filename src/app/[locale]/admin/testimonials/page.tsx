@@ -29,7 +29,6 @@ import {
 
 const FILTERS = ["all", "pending", "approved", "rejected"] as const;
 type Filter = (typeof FILTERS)[number];
-type TestimonialBodyLocale = "en" | "fr";
 
 function resolveFilter(value: string | null): Filter {
   if (value && FILTERS.includes(value as Filter)) {
@@ -57,9 +56,6 @@ export default function AdminTestimonialsPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>(filterFromUrl);
   const [deleteId, setDeleteId] = useState<string | null>(null);
-  const [bodyLocaleById, setBodyLocaleById] = useState<
-    Record<string, TestimonialBodyLocale>
-  >({});
 
   const fetchData = useCallback(async (activeFilter: Filter) => {
     setIsLoading(true);
@@ -103,7 +99,7 @@ export default function AdminTestimonialsPage() {
   };
 
   const bodyContentFor = (item: Testimonial) => {
-    const selectedLocale = bodyLocaleById[item.id] ?? (locale === "fr" ? "fr" : "en");
+    const selectedLocale = locale === "fr" ? "fr" : "en";
     const primary = selectedLocale === "fr" ? item.content_fr : item.content_en;
     const fallback = selectedLocale === "fr" ? item.content_en : item.content_fr;
 
@@ -194,7 +190,7 @@ export default function AdminTestimonialsPage() {
       ) : (
         <div className="space-y-4">
           {items.map((item) => {
-            const { content, selectedLocale, fallbackNotice } = bodyContentFor(item);
+            const { content, fallbackNotice } = bodyContentFor(item);
             return (
               <Card key={item.id}>
                 <CardHeader className="space-y-2">
@@ -209,27 +205,6 @@ export default function AdminTestimonialsPage() {
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="flex items-center gap-1 rounded-md border border-border p-1 w-fit">
-                    <Button
-                      size="sm"
-                      variant={selectedLocale === "en" ? "secondary" : "ghost"}
-                      onClick={() =>
-                        setBodyLocaleById((prev) => ({ ...prev, [item.id]: "en" }))
-                      }
-                    >
-                      {t.testimonials.bodyEn}
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={selectedLocale === "fr" ? "secondary" : "ghost"}
-                      onClick={() =>
-                        setBodyLocaleById((prev) => ({ ...prev, [item.id]: "fr" }))
-                      }
-                    >
-                      {t.testimonials.bodyFr}
-                    </Button>
-                  </div>
-
                   <p className="text-sm leading-relaxed">{content}</p>
                   {fallbackNotice ? (
                     <p className="text-xs text-muted-foreground">{fallbackNotice}</p>

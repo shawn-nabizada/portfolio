@@ -1,9 +1,8 @@
 import type { Locale } from "@/lib/i18n";
 import type { PortfolioData } from "@/lib/portfolio-data";
-import type { Hobby, Resume, Testimonial } from "@/lib/types/database";
+import type { Hobby, Testimonial } from "@/lib/types/database";
 import {
   formatColumns,
-  formatDateLabel,
   formatYearRange,
   normalize,
   slugify,
@@ -18,8 +17,7 @@ export type SectionKey =
   | "education"
   | "hobbies"
   | "testimonials"
-  | "contact"
-  | "resume";
+  | "contact";
 
 export type PromptType = "msg" | "testimonial" | "login";
 
@@ -41,6 +39,7 @@ interface CommandContext {
   cwd: SectionKey | null;
   data: PortfolioData;
   locale: Locale;
+  isCompact: boolean;
 }
 
 interface SectionItem {
@@ -58,6 +57,14 @@ export interface CommandResult {
   clear?: boolean;
   close?: boolean;
   startPrompt?: PromptType;
+  gameAction?: {
+    game: "labyrinth";
+    action: "start" | "quit";
+  };
+  prefillInput?: string;
+  downloadResume?: {
+    language: "en" | "fr";
+  };
 }
 
 export const SECTION_KEYS: SectionKey[] = [
@@ -69,7 +76,6 @@ export const SECTION_KEYS: SectionKey[] = [
   "hobbies",
   "testimonials",
   "contact",
-  "resume",
 ];
 
 const SECTION_SUGGESTION_METADATA: Record<
@@ -111,10 +117,6 @@ const SECTION_SUGGESTION_METADATA: Record<
     frLabel: "contact",
     aliases: ["message", "messages"],
   },
-  resume: {
-    frLabel: "cv",
-    aliases: ["resume", "cv"],
-  },
 };
 
 interface TerminalCommandDescriptor {
@@ -126,6 +128,13 @@ interface TerminalCommandDescriptor {
     en: string;
     fr: string;
   };
+}
+
+interface HelpEntry {
+  command: string;
+  commandFr?: string;
+  en: string;
+  fr: string;
 }
 
 export interface DiscoverableCommand {
@@ -195,6 +204,24 @@ const TERMINAL_COMMANDS: TerminalCommandDescriptor[] = [
     },
   },
   {
+    command: "download-resume",
+    usage: "download-resume <en|fr>",
+    insertValue: "download-resume ",
+    description: {
+      en: "Download a resume (English or French)",
+      fr: "Télécharger un CV (anglais ou français)",
+    },
+  },
+  {
+    command: "labyrinth",
+    usage: "labyrinth <start|help|quit>",
+    insertValue: "labyrinth ",
+    description: {
+      en: "Play fog-of-war labyrinth",
+      fr: "Jouer au labyrinthe avec brouillard",
+    },
+  },
+  {
     command: "clear",
     usage: "clear",
     description: {
@@ -219,6 +246,27 @@ const TERMINAL_COMMANDS: TerminalCommandDescriptor[] = [
       fr: "Démarrer la connexion admin",
     },
   },
+];
+
+const HELP_COMMAND_ENTRIES: HelpEntry[] = [
+  { command: "help", en: "Show this help", fr: "Afficher cette aide" },
+  { command: "ls", en: "List items in the current directory", fr: "Lister les éléments du répertoire courant" },
+  { command: "cd <section>", en: "Enter a section", fr: "Entrer dans une section" },
+  { command: "cd ..", en: "Return to root", fr: "Revenir à la racine" },
+  { command: "cat <item>", en: "Show a single item in detail", fr: "Afficher un élément en détail" },
+  { command: "msg", en: "Send a message", fr: "Envoyer un message" },
+  { command: "testimonial", en: "Submit a testimonial", fr: "Soumettre un témoignage" },
+  { command: "download-resume <en|fr>", en: "Download a resume", fr: "Télécharger un CV" },
+  { command: "labyrinth <start|help|quit>", en: "Play terminal labyrinth", fr: "Jouer au labyrinthe terminal" },
+  { command: "clear", en: "Clear terminal output", fr: "Effacer la sortie" },
+  { command: "quit", en: "Close terminal", fr: "Fermer le terminal" },
+];
+
+const HELP_SHORTCUT_ENTRIES: HelpEntry[] = [
+  { command: "Alt+Enter", commandFr: "Alt+Entrée", en: "Apply active/hovered suggestion", fr: "Appliquer la suggestion active/survolée" },
+  { command: "↑ / ↓", en: "Navigate suggestions and history", fr: "Naviguer dans les suggestions et l'historique" },
+  { command: "Enter", commandFr: "Entrée", en: "Apply a suggestion or run command", fr: "Appliquer une suggestion ou exécuter la commande" },
+  { command: "Esc", commandFr: "Échap", en: "Close terminal", fr: "Fermer le terminal" },
 ];
 
 const divider = "─────────────────────────────────";
@@ -311,6 +359,68 @@ export function getCommandArgumentSuggestions({
     );
   }
 
+  if (normalizedCommand === "download-resume") {
+    const availableLanguages = new Set(data.resumes.map((resume) => resume.language));
+    const unavailableLabel =
+      locale === "fr" ? " (indisponible)" : " (not available)";
+
+    const rawSuggestions: Array<CommandArgumentSuggestion & { searchTerms: string[] }> = [
+      {
+        id: "download-resume:en",
+        command: "download-resume",
+        usage: "download-resume en",
+        insertValue: "en",
+        description: `${locale === "fr" ? "CV anglais" : "English resume"}${
+          availableLanguages.has("en") ? "" : unavailableLabel
+        }`,
+        searchTerms: ["en", "english", "anglais", "resume", "cv"],
+      },
+      {
+        id: "download-resume:fr",
+        command: "download-resume",
+        usage: "download-resume fr",
+        insertValue: "fr",
+        description: `${locale === "fr" ? "CV français" : "French resume"}${
+          availableLanguages.has("fr") ? "" : unavailableLabel
+        }`,
+        searchTerms: ["fr", "french", "francais", "français", "resume", "cv"],
+      },
+    ];
+
+    return rankAndFilterArgumentSuggestions(rawSuggestions, query);
+  }
+
+  if (normalizedCommand === "labyrinth" || normalizedCommand === "lab") {
+    const rawSuggestions: Array<CommandArgumentSuggestion & { searchTerms: string[] }> = [
+      {
+        id: "labyrinth:start",
+        command: "labyrinth",
+        usage: "labyrinth start",
+        insertValue: "start",
+        description: locale === "fr" ? "Démarrer une partie" : "Start a game",
+        searchTerms: ["start", "new", "begin", "demarrer", "démarrer", "play"],
+      },
+      {
+        id: "labyrinth:help",
+        command: "labyrinth",
+        usage: "labyrinth help",
+        insertValue: "help",
+        description: locale === "fr" ? "Afficher l'aide du jeu" : "Show game help",
+        searchTerms: ["help", "aide", "instructions", "controls", "commandes"],
+      },
+      {
+        id: "labyrinth:quit",
+        command: "labyrinth",
+        usage: "labyrinth quit",
+        insertValue: "quit",
+        description: locale === "fr" ? "Quitter la partie active" : "Quit active game",
+        searchTerms: ["quit", "exit", "leave", "sortir", "quitter"],
+      },
+    ];
+
+    return rankAndFilterArgumentSuggestions(rawSuggestions, query);
+  }
+
   return [];
 }
 
@@ -325,9 +435,9 @@ export function executeCommand(input: string, context: CommandContext): CommandR
 
   switch (lowerCommand) {
     case "help":
-      return { lines: helpLines(context.locale) };
+      return { lines: helpLines(context.locale, context.isCompact) };
     case "ls":
-      return { lines: lsLines(context.cwd, context.data, context.locale) };
+      return { lines: lsLines(context.cwd, context.data, context.locale, context.isCompact) };
     case "cd":
       return cdResult(context.cwd, args, context.locale);
     case "cat":
@@ -356,6 +466,11 @@ export function executeCommand(input: string, context: CommandContext): CommandR
         ],
         startPrompt: "testimonial",
       };
+    case "download-resume":
+      return downloadResumeResult(args, context.data, context.locale);
+    case "labyrinth":
+    case "lab":
+      return labyrinthResult(args, context.locale);
     case "login":
       return {
         lines: [
@@ -391,54 +506,29 @@ export function executeCommand(input: string, context: CommandContext): CommandR
   }
 }
 
-function helpLines(locale: Locale): OutputLine[] {
-  if (locale === "fr") {
-    return [
-      line("Commandes disponibles:", "system"),
-      line("help           - Afficher cette aide"),
-      line("ls             - Lister les éléments du répertoire courant"),
-      line("cd <section>   - Entrer dans une section"),
-      line("cd ..          - Revenir à la racine"),
-      line("cat <item>     - Afficher un élément en détail"),
-      line("msg            - Envoyer un message"),
-      line("testimonial    - Soumettre un témoignage"),
-      line("clear          - Effacer la sortie"),
-      line("quit           - Fermer le terminal"),
-      line(""),
-      line("Raccourcis:", "system"),
-      line("Alt+Entrée     - Appliquer la suggestion active/survolée", "success"),
-      line("↑ / ↓          - Naviguer dans les suggestions et l'historique", "success"),
-      line("Entrée         - Appliquer une suggestion ou exécuter la commande", "success"),
-      line("Échap          - Fermer le terminal", "success"),
-    ];
-  }
-
+function helpLines(locale: Locale, isCompact: boolean): OutputLine[] {
   return [
-    line("Available commands:", "system"),
-    line("help           - Show this help"),
-    line("ls             - List items in the current directory"),
-    line("cd <section>   - Enter a section"),
-    line("cd ..          - Return to root"),
-    line("cat <item>     - Show a single item in detail"),
-    line("msg            - Send a message"),
-    line("testimonial    - Submit a testimonial"),
-    line("clear          - Clear terminal output"),
-    line("quit           - Close terminal"),
+    line(locale === "fr" ? "Commandes disponibles:" : "Available commands:", "system"),
+    ...formatHelpEntries(HELP_COMMAND_ENTRIES, locale, isCompact, "default"),
     line(""),
-    line("Shortcuts:", "system"),
-    line("Alt+Enter      - Apply active/hovered suggestion", "success"),
-    line("↑ / ↓          - Navigate suggestions and history", "success"),
-    line("Enter          - Apply a suggestion or run command", "success"),
-    line("Esc            - Close terminal", "success"),
+    line(locale === "fr" ? "Raccourcis:" : "Shortcuts:", "system"),
+    ...formatHelpEntries(HELP_SHORTCUT_ENTRIES, locale, isCompact, "success"),
   ];
 }
 
-function lsLines(cwd: SectionKey | null, data: PortfolioData, locale: Locale): OutputLine[] {
+function lsLines(
+  cwd: SectionKey | null,
+  data: PortfolioData,
+  locale: Locale,
+  isCompact: boolean
+): OutputLine[] {
   if (!cwd) {
+    const columns = isCompact ? 2 : 3;
+    const padWidth = isCompact ? 12 : 16;
     return formatColumns(
       SECTION_KEYS.map((section) => `${section}/`),
-      3,
-      16
+      columns,
+      padWidth
     ).map((entry) => line(entry, "muted", true));
   }
 
@@ -448,6 +538,29 @@ function lsLines(cwd: SectionKey | null, data: PortfolioData, locale: Locale): O
   }
 
   return items.map((item) => line(item.brief, "default"));
+}
+
+function formatHelpEntries(
+  entries: HelpEntry[],
+  locale: Locale,
+  isCompact: boolean,
+  tone: OutputTone
+): OutputLine[] {
+  const displayCommand = (entry: HelpEntry) =>
+    locale === "fr" && entry.commandFr ? entry.commandFr : entry.command;
+
+  if (isCompact) {
+    return entries.flatMap((entry) => {
+      const description = locale === "fr" ? entry.fr : entry.en;
+      return [line(displayCommand(entry), tone), line(`  ${description}`, tone)];
+    });
+  }
+
+  const commandWidth = Math.max(...entries.map((entry) => displayCommand(entry).length)) + 2;
+  return entries.map((entry) => {
+    const description = locale === "fr" ? entry.fr : entry.en;
+    return line(`${displayCommand(entry).padEnd(commandWidth)}- ${description}`, tone, true);
+  });
 }
 
 function cdResult(cwd: SectionKey | null, args: string[], locale: Locale): CommandResult {
@@ -589,11 +702,140 @@ function buildSectionItems(
       return buildTestimonialItems(data, locale);
     case "contact":
       return [buildContactItem(locale)];
-    case "resume":
-      return buildResumeItems(data, locale);
     default:
       return [];
   }
+}
+
+function downloadResumeResult(
+  args: string[],
+  data: PortfolioData,
+  locale: Locale
+): CommandResult {
+  const selectedLanguage = normalize(args[0] ?? "");
+  const hasExtraArgs = args.length > 1;
+
+  if (!selectedLanguage && !hasExtraArgs) {
+    return {
+      lines: [
+        line(
+          locale === "fr"
+            ? "Sélectionnez la langue du CV à télécharger."
+            : "Select a resume language to download.",
+          "system"
+        ),
+        line(
+          locale === "fr"
+            ? "Utilisez ↑/↓ puis Entrée pour choisir en ou fr."
+            : "Use ↑/↓ then Enter to choose en or fr.",
+          "muted"
+        ),
+      ],
+      prefillInput: "download-resume ",
+    };
+  }
+
+  if (hasExtraArgs || (selectedLanguage !== "en" && selectedLanguage !== "fr")) {
+    return {
+      lines: [
+        line(locale === "fr" ? "usage: download-resume <en|fr>" : "usage: download-resume <en|fr>", "error"),
+      ],
+    };
+  }
+
+  const hasLanguageResume = data.resumes.some((resume) => resume.language === selectedLanguage);
+  if (!hasLanguageResume) {
+    return {
+      lines: [
+        line(
+          locale === "fr"
+            ? `Aucun CV ${selectedLanguage} disponible.`
+            : `No ${selectedLanguage} resume available.`,
+          "error"
+        ),
+      ],
+    };
+  }
+
+  return {
+    lines: [
+      line(
+        locale === "fr"
+          ? `Téléchargement du CV ${selectedLanguage}...`
+          : `Downloading ${selectedLanguage} resume...`,
+        "system"
+      ),
+    ],
+    downloadResume: {
+      language: selectedLanguage,
+    },
+  };
+}
+
+function labyrinthResult(args: string[], locale: Locale): CommandResult {
+  const action = normalize(args[0] ?? "");
+
+  if (!action || action === "start") {
+    return {
+      lines: [
+        line(
+          locale === "fr"
+            ? "Initialisation du labyrinthe..."
+            : "Initializing labyrinth...",
+          "system"
+        ),
+      ],
+      gameAction: {
+        game: "labyrinth",
+        action: "start",
+      },
+    };
+  }
+
+  if (action === "help") {
+    return {
+      lines: [
+        line(locale === "fr" ? "Labyrinthe:" : "Labyrinth:", "system"),
+        line(locale === "fr" ? "  w/a/s/d  - se déplacer" : "  w/a/s/d  - move", "muted"),
+        line(locale === "fr" ? "  lab quit - quitter la partie" : "  lab quit - quit game", "muted"),
+        line(locale === "fr" ? "  lab help - afficher cette aide" : "  lab help - show this help", "muted"),
+        line(
+          locale === "fr"
+            ? "Objectif: atteindre X avec le moins de pas possible."
+            : "Goal: reach X in as few steps as possible.",
+          "success"
+        ),
+      ],
+    };
+  }
+
+  if (action === "quit") {
+    return {
+      lines: [
+        line(
+          locale === "fr"
+            ? "Fin de la partie demandée."
+            : "Requested to end current game.",
+          "muted"
+        ),
+      ],
+      gameAction: {
+        game: "labyrinth",
+        action: "quit",
+      },
+    };
+  }
+
+  return {
+    lines: [
+      line(
+        locale === "fr"
+          ? "usage: labyrinth <start|help|quit>"
+          : "usage: labyrinth <start|help|quit>",
+        "error"
+      ),
+    ],
+  };
 }
 
 function buildAboutItem(data: PortfolioData, locale: Locale): SectionItem {
@@ -774,52 +1016,6 @@ function buildContactItem(locale: Locale): SectionItem {
       locale === "fr" ? "Commande: msg" : "Command: msg",
     ],
   };
-}
-
-function buildResumeItems(data: PortfolioData, locale: Locale): SectionItem[] {
-  if (data.resumes.length === 0) {
-    return [
-      {
-        key: "resume",
-        label: "resume",
-        aliases: ["resume", "cv"],
-        brief: locale === "fr" ? "Aucun CV disponible." : "No resume available.",
-        detail: [
-          divider,
-          locale === "fr" ? "CV" : "Resume",
-          divider,
-          locale === "fr" ? "Aucun CV n'est actuellement disponible." : "No resume is currently available.",
-        ],
-      },
-    ];
-  }
-
-  return data.resumes.map((resume: Resume) => {
-    const languageLabel =
-      resume.language === "fr"
-        ? locale === "fr"
-          ? "français"
-          : "French"
-        : locale === "fr"
-          ? "anglais"
-          : "English";
-
-    return {
-      key: resume.language,
-      label: `${resume.language}`,
-      aliases: [resume.language, resume.file_name, slugify(resume.file_name)],
-      brief: `${resume.language} — ${truncate(resume.file_name, 48)}`,
-      detail: [
-        divider,
-        locale === "fr" ? "CV" : "Resume",
-        divider,
-        `${locale === "fr" ? "Langue" : "Language"}: ${languageLabel}`,
-        `${locale === "fr" ? "Fichier" : "File"}: ${resume.file_name}`,
-        `${locale === "fr" ? "Téléversé" : "Uploaded"}: ${formatDateLabel(resume.uploaded_at, locale)}`,
-        `${locale === "fr" ? "URL" : "URL"}: ${resume.file_url}`,
-      ],
-    };
-  });
 }
 
 function line(text: string, tone: OutputTone = "default", preserveWhitespace = false): OutputLine {

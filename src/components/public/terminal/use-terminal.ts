@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { Locale } from "@/lib/i18n";
 import type { PortfolioData } from "@/lib/portfolio-data";
 import { fetchMutation } from "@/lib/http/mutation";
+import { TESTIMONIAL_MAX_CHARS } from "@/lib/constants/testimonials";
 import { createClient } from "@/lib/supabase/client";
 import { getBootLines, BOOT_STAGGER_MS } from "./boot-sequence";
 import {
@@ -17,6 +18,14 @@ import {
   type SectionKey,
 } from "./commands";
 import { isValidEmail, normalize } from "./formatters";
+import {
+  applyLabyrinthMove,
+  createLabyrinthState,
+  labyrinthHelpLines,
+  parseLabyrinthMoveInput,
+  renderLabyrinthBoard,
+  type LabyrinthState,
+} from "./games/labyrinth";
 
 interface PromptField {
   key: string;
@@ -34,8 +43,21 @@ interface PromptState {
   values: Record<string, string>;
 }
 
+type LabyrinthCommand = "help" | "quit" | "start" | "none";
+
 export interface TerminalLine extends OutputLineDraft {
   id: string;
+}
+
+interface ActiveGameView {
+  game: "labyrinth";
+  statusLine: string;
+  metaLine: string;
+  boardLines: string[];
+  noticeLine?: {
+    text: string;
+    tone?: OutputLineDraft["tone"];
+  };
 }
 
 interface TerminalSuggestion {
@@ -95,9 +117,12 @@ export function useTerminal({
   const [input, setInput] = useState("");
   const [history, setHistory] = useState<string[]>([]);
   const [promptState, setPromptState] = useState<PromptState | null>(null);
+  const [labyrinthState, setLabyrinthState] = useState<LabyrinthState | null>(null);
+  const [activeGameView, setActiveGameView] = useState<ActiveGameView | null>(null);
   const [isBooting, setIsBooting] = useState(true);
   const [isSubmittingPrompt, setIsSubmittingPrompt] = useState(false);
   const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  const [isCompactDisplay, setIsCompactDisplay] = useState(false);
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [hoveredSuggestionIndex, setHoveredSuggestionIndex] = useState<number | null>(null);
 
@@ -127,6 +152,17 @@ export function useTerminal({
   }, []);
 
   useEffect(() => {
+    if (typeof window === "undefined") return;
+
+    const mediaQuery = window.matchMedia("(max-width: 640px)");
+    const update = () => setIsCompactDisplay(mediaQuery.matches);
+    update();
+
+    mediaQuery.addEventListener("change", update);
+    return () => mediaQuery.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
     let cancelled = false;
 
     setLines([]);
@@ -135,6 +171,8 @@ export function useTerminal({
     setHistory([]);
     historyIndexRef.current = -1;
     setPromptState(null);
+    setLabyrinthState(null);
+    setActiveGameView(null);
     setIsBooting(true);
     setIsSubmittingPrompt(false);
     setActiveSuggestionIndex(-1);
@@ -189,6 +227,7 @@ export function useTerminal({
     !isBooting &&
     !isSubmittingPrompt &&
     !promptState &&
+    !labyrinthState &&
     commandToken.length > 0;
 
   const suggestions = useMemo<TerminalSuggestion[]>(() => {
@@ -228,12 +267,25 @@ export function useTerminal({
           replaceMode: "argument" as const,
         }));
 
-        return mappedArgumentSuggestions.filter((suggestion) => {
+        const normalizedArgumentInput = normalize(argumentInput);
+        const hasExactArgumentMatch =
+          normalizedArgumentInput.length > 0 &&
+          mappedArgumentSuggestions.some(
+            (suggestion) => normalize(suggestion.insertValue) === normalizedArgumentInput
+          );
+
+        if (hasExactArgumentMatch) {
+          return [];
+        }
+
+        const filteredArgumentSuggestions = mappedArgumentSuggestions.filter((suggestion) => {
           const nextInputComparable = normalizeSuggestionComparableInput(
             buildInputFromSuggestion(input, suggestion)
           );
           return nextInputComparable !== currentInputComparable;
         });
+
+        return filteredArgumentSuggestions;
       }
     }
 
@@ -333,8 +385,7 @@ export function useTerminal({
               author_name: values.author_name,
               author_title: values.author_title,
               author_company: values.author_company,
-              content_en: values.content_en,
-              content_fr: values.content_fr,
+              content: values.content,
             }),
           });
 
@@ -536,6 +587,63 @@ export function useTerminal({
     [appendLines, locale, promptState, submitPrompt]
   );
 
+  const resolveLabyrinthCommand = useCallback((inputValue: string): LabyrinthCommand => {
+    const normalizedInput = normalize(inputValue);
+    if (!normalizedInput) return "none";
+
+    if (
+      normalizedInput === "labyrinth help" ||
+      normalizedInput === "lab help" ||
+      normalizedInput === "labyrinth" ||
+      normalizedInput === "lab" ||
+      normalizedInput === "help"
+    ) {
+      return "help";
+    }
+
+    if (
+      normalizedInput === "labyrinth quit" ||
+      normalizedInput === "lab quit" ||
+      normalizedInput === "labyrinth exit" ||
+      normalizedInput === "lab exit"
+    ) {
+      return "quit";
+    }
+
+    if (
+      normalizedInput === "labyrinth start" ||
+      normalizedInput === "lab start" ||
+      normalizedInput === "restart"
+    ) {
+      return "start";
+    }
+
+    return "none";
+  }, []);
+
+  const buildLabyrinthGameView = useCallback(
+    (
+      state: LabyrinthState,
+      noticeLine?: {
+        text: string;
+        tone?: OutputLineDraft["tone"];
+      }
+    ): ActiveGameView => ({
+      game: "labyrinth",
+      statusLine:
+        locale === "fr"
+          ? "Labyrinthe actif. Utilisez w/a/s/d pour vous déplacer."
+          : "Labyrinth active. Use w/a/s/d to move.",
+      metaLine:
+        locale === "fr"
+          ? `Pas: ${state.steps} | Objectif: atteindre X`
+          : `Steps: ${state.steps} | Goal: reach X`,
+      boardLines: renderLabyrinthBoard(state),
+      noticeLine,
+    }),
+    [locale]
+  );
+
   const syncSectionNavigation = useCallback((sectionToFocus: SectionKey | null | undefined) => {
     if (typeof window === "undefined" || sectionToFocus === undefined) return;
 
@@ -554,9 +662,62 @@ export function useTerminal({
     window.history.replaceState(window.history.state, "", nextUrl);
   }, []);
 
+  const triggerResumeDownload = useCallback(
+    async (language: "en" | "fr") => {
+      const resume = data.resumes.find((entry) => entry.language === language);
+      if (!resume) {
+        appendLines([
+          {
+            text:
+              locale === "fr"
+                ? `Aucun CV ${language} disponible.`
+                : `No ${language} resume available.`,
+            tone: "error",
+          },
+        ]);
+        return;
+      }
+
+      const path =
+        typeof window === "undefined" ? `/${locale}` : window.location.pathname;
+
+      void fetchMutation("/api/analytics/resume-download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          locale,
+          path,
+          language,
+        }),
+      }).catch(() => {
+        // Ignore analytics failures for terminal resume downloads.
+      });
+
+      if (typeof window !== "undefined") {
+        const link = document.createElement("a");
+        link.href = resume.file_url;
+        link.download = resume.file_name;
+        link.target = "_blank";
+        link.rel = "noreferrer";
+        link.click();
+      }
+
+      appendLines([
+        {
+          text:
+            locale === "fr"
+              ? `CV ${language} téléchargé: ${resume.file_name}`
+              : `${language.toUpperCase()} resume downloaded: ${resume.file_name}`,
+          tone: "success",
+        },
+      ]);
+    },
+    [appendLines, data.resumes, locale]
+  );
+
   const applySuggestion = useCallback(
-    (index?: number) => {
-      if (suggestions.length === 0) return false;
+    (index?: number): TerminalSuggestion | null => {
+      if (suggestions.length === 0) return null;
 
       const fallbackIndex = hoveredSuggestionIndex ?? activeSuggestionIndex;
       const suggestionIndex = index ?? fallbackIndex;
@@ -566,22 +727,22 @@ export function useTerminal({
         suggestionIndex < 0 ||
         suggestionIndex >= suggestions.length
       ) {
-        return false;
+        return null;
       }
 
       const suggestion = suggestions[suggestionIndex];
       setInput((currentInput) => buildInputFromSuggestion(currentInput, suggestion));
       historyIndexRef.current = -1;
       setActiveSuggestionIndex(suggestionIndex);
-      return true;
+      return suggestion;
     },
     [activeSuggestionIndex, hoveredSuggestionIndex, suggestions]
   );
 
-  const submitInput = useCallback(async () => {
+  const submitInput = useCallback(async (rawInputOverride?: string) => {
     if (isBooting || isSubmittingPrompt) return;
 
-    const rawInput = input;
+    const rawInput = rawInputOverride ?? input;
     setInput("");
     historyIndexRef.current = -1;
 
@@ -593,6 +754,98 @@ export function useTerminal({
     const trimmed = rawInput.trim();
     if (!trimmed) return;
 
+    if (labyrinthState) {
+      const normalizedInput = normalize(trimmed);
+      const shouldPassToGlobalCommand =
+        normalizedInput === "quit" || normalizedInput === "clear";
+
+      if (!shouldPassToGlobalCommand) {
+        const labyrinthCommand = resolveLabyrinthCommand(trimmed);
+        if (labyrinthCommand === "help") {
+          appendLines(labyrinthHelpLines(locale).map((text, index) => ({
+            text,
+            tone: index === 0 ? "system" : "muted",
+          })));
+          return;
+        }
+
+        if (labyrinthCommand === "start") {
+          const newState = createLabyrinthState();
+          setLabyrinthState(newState);
+          setActiveGameView(
+            buildLabyrinthGameView(newState, {
+              text: locale === "fr" ? "Nouvelle partie démarrée." : "New game started.",
+              tone: "system",
+            })
+          );
+          return;
+        }
+
+        if (labyrinthCommand === "quit") {
+          setLabyrinthState(null);
+          setActiveGameView(null);
+          appendLines([
+            {
+              text:
+                locale === "fr"
+                  ? "Partie de labyrinthe fermée."
+                  : "Labyrinth game closed.",
+              tone: "muted",
+            },
+          ]);
+          return;
+        }
+
+        const move = parseLabyrinthMoveInput(trimmed);
+        if (!move) {
+          setActiveGameView(
+            buildLabyrinthGameView(labyrinthState, {
+              text:
+                locale === "fr"
+                  ? "Commande invalide. Utilisez w/a/s/d, lab help ou lab quit."
+                  : "Invalid command. Use w/a/s/d, lab help, or lab quit.",
+              tone: "error",
+            })
+          );
+          return;
+        }
+
+        const moveResult = applyLabyrinthMove(labyrinthState, move);
+        if (moveResult.hitWall) {
+          setActiveGameView(
+            buildLabyrinthGameView(labyrinthState, {
+              text: locale === "fr" ? "Mur détecté." : "Wall hit.",
+              tone: "muted",
+            })
+          );
+          return;
+        }
+
+        if (moveResult.won) {
+          const elapsedSeconds = Math.max(
+            1,
+            Math.round((moveResult.elapsedMs ?? 0) / 1000)
+          );
+          setLabyrinthState(null);
+          setActiveGameView(null);
+          appendLines([
+            {
+              text:
+                locale === "fr"
+                  ? `Victoire! Sortie atteinte en ${moveResult.state.steps} pas (${elapsedSeconds}s).`
+                  : `Victory! Exit reached in ${moveResult.state.steps} steps (${elapsedSeconds}s).`,
+              tone: "success",
+            },
+          ]);
+          return;
+        }
+
+        setLabyrinthState(moveResult.state);
+        setActiveGameView(buildLabyrinthGameView(moveResult.state));
+        return;
+      }
+    }
+
     appendLines([{ text: `${getShellPrompt(cwd)} ${trimmed}`, tone: "prompt" }]);
     setHistory((previous) => [...previous, trimmed]);
 
@@ -600,6 +853,7 @@ export function useTerminal({
       cwd,
       data,
       locale,
+      isCompact: isCompactDisplay,
     });
 
     if (result.clear) {
@@ -616,9 +870,31 @@ export function useTerminal({
 
     appendLines(result.lines);
 
+    if (result.prefillInput !== undefined) {
+      setInput(result.prefillInput);
+    }
+
+    if (result.downloadResume) {
+      await triggerResumeDownload(result.downloadResume.language);
+    }
+
     if (result.startPrompt === "login") {
       await startLoginFlow();
       return;
+    }
+
+    if (result.gameAction?.game === "labyrinth") {
+      if (result.gameAction.action === "start") {
+        const newState = createLabyrinthState();
+        setLabyrinthState(newState);
+        setActiveGameView(buildLabyrinthGameView(newState));
+        return;
+      }
+
+      if (result.gameAction.action === "quit") {
+        setLabyrinthState(null);
+        setActiveGameView(null);
+      }
     }
 
     if (result.startPrompt) {
@@ -636,9 +912,14 @@ export function useTerminal({
     isBooting,
     isSubmittingPrompt,
     locale,
+    isCompactDisplay,
     onRequestClose,
     processPromptInput,
     promptState,
+    labyrinthState,
+    buildLabyrinthGameView,
+    resolveLabyrinthCommand,
+    triggerResumeDownload,
     syncSectionNavigation,
     startLoginFlow,
     startPrompt,
@@ -702,7 +983,9 @@ export function useTerminal({
     ? currentPromptField
       ? `> ${formatPromptFieldLabel(currentPromptField, locale, true)}:`
       : ">"
-    : getShellPrompt(cwd);
+    : labyrinthState
+      ? "labyrinth@portfolio:~$"
+      : getShellPrompt(cwd);
   const currentInputType =
     currentPromptField?.key === "email"
       ? ("email" as const)
@@ -720,6 +1003,7 @@ export function useTerminal({
 
   return {
     lines,
+    activeGameView,
     input,
     setInputValue,
     submitInput,
@@ -733,7 +1017,7 @@ export function useTerminal({
     prompt,
     currentInputType,
     currentEnterKeyHint,
-    isPrompting: Boolean(promptState),
+    isPrompting: Boolean(promptState || labyrinthState),
     isInputDisabled: isBooting || isSubmittingPrompt,
     isBooting,
   };
@@ -811,18 +1095,14 @@ function getPromptFields(type: PromptType, locale: Locale): PromptField[] {
         invalidMessage: locale === "fr" ? "erreur: entreprise invalide" : "error: invalid company",
       },
       {
-        key: "content_en",
-        label: locale === "fr" ? "Contenu EN" : "Content EN",
+        key: "content",
+        label: locale === "fr" ? "Contenu" : "Content",
         required: true,
+        validate: (value) => value.length <= TESTIMONIAL_MAX_CHARS,
         invalidMessage:
-          locale === "fr" ? "erreur: contenu anglais requis" : "error: english content is required",
-      },
-      {
-        key: "content_fr",
-        label: locale === "fr" ? "Contenu FR" : "Content FR",
-        required: false,
-        invalidMessage:
-          locale === "fr" ? "erreur: contenu français invalide" : "error: invalid french content",
+          locale === "fr"
+            ? `erreur: le contenu doit contenir ${TESTIMONIAL_MAX_CHARS} caractères maximum`
+            : `error: content must be ${TESTIMONIAL_MAX_CHARS} characters or fewer`,
       },
     ];
   }

@@ -4,6 +4,12 @@ import { requireAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
 import { revalidatePortfolioPages } from "@/lib/revalidation";
 
+function normalizeOptionalText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export async function PUT(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -15,7 +21,7 @@ export async function PUT(
 
   const { id } = await params;
   const body = await request.json();
-  const { name_en, name_fr, icon, order } = body;
+  const { name_en, name_fr, short_description_en, short_description_fr, icon, order } = body;
 
   const adminClient = createAdminClient();
 
@@ -24,6 +30,12 @@ export async function PUT(
     .update({
       ...(name_en !== undefined && { name_en }),
       ...(name_fr !== undefined && { name_fr }),
+      ...(short_description_en !== undefined && {
+        short_description_en: normalizeOptionalText(short_description_en),
+      }),
+      ...(short_description_fr !== undefined && {
+        short_description_fr: normalizeOptionalText(short_description_fr),
+      }),
       ...(icon !== undefined && { icon: icon || null }),
       ...(order !== undefined && { order }),
     })

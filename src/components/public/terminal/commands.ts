@@ -717,18 +717,21 @@ function buildEducationItems(data: PortfolioData, locale: Locale): SectionItem[]
 function buildHobbyItems(data: PortfolioData, locale: Locale): SectionItem[] {
   return data.hobbies.map((item: Hobby) => {
     const name = locale === "fr" ? item.name_fr : item.name_en;
+    const description =
+      locale === "fr"
+        ? item.short_description_fr || item.short_description_en
+        : item.short_description_en || item.short_description_fr;
 
     return {
       key: slugify(name),
       label: name,
       aliases: [name, slugify(name), item.icon || ""].filter(Boolean),
-      brief: item.icon ? `${name} (${item.icon})` : name,
+      brief: name,
       detail: [
         divider,
         name,
         divider,
-        `${locale === "fr" ? "Icône" : "Icon"}: ${item.icon || "N/A"}`,
-        `${locale === "fr" ? "Ordre" : "Order"}: ${item.order}`,
+        description || (locale === "fr" ? "Aucune description disponible." : "No description available."),
       ],
     };
   });

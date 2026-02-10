@@ -167,6 +167,7 @@ export const en = {
     addHobby: "Add Hobby",
     editHobby: "Edit Hobby",
     hobbyName: "Hobby Name",
+    shortDescription: "Short Description",
     icon: "Icon",
   },
   resume: {

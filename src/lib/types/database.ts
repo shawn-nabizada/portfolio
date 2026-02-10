@@ -81,6 +81,8 @@ export interface Hobby {
   id: string;
   name_en: string;
   name_fr: string;
+  short_description_en: string | null;
+  short_description_fr: string | null;
   icon: string | null;
   order: number;
   created_at: string;

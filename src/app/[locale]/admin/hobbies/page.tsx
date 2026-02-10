@@ -41,6 +41,8 @@ import { toast } from "sonner";
 interface HobbyFormData {
   name_en: string;
   name_fr: string;
+  short_description_en: string;
+  short_description_fr: string;
   icon: string;
   order: number;
 }
@@ -61,6 +63,8 @@ function HobbyDialog({
   const [form, setForm] = useState<HobbyFormData>({
     name_en: "",
     name_fr: "",
+    short_description_en: "",
+    short_description_fr: "",
     icon: "",
     order: 0,
   });
@@ -72,6 +76,8 @@ function HobbyDialog({
       setForm({
         name_en: hobby.name_en,
         name_fr: hobby.name_fr,
+        short_description_en: hobby.short_description_en || "",
+        short_description_fr: hobby.short_description_fr || "",
         icon: hobby.icon || "",
         order: hobby.order,
       });
@@ -80,6 +86,8 @@ function HobbyDialog({
       setForm({
         name_en: "",
         name_fr: "",
+        short_description_en: "",
+        short_description_fr: "",
         icon: "",
         order: 0,
       });
@@ -145,6 +153,34 @@ function HobbyDialog({
                 setForm((f) => ({ ...f, name_fr: e.target.value }))
               }
               required
+            />
+          </div>
+
+          {/* Short Description EN */}
+          <div className="space-y-2">
+            <Label htmlFor="hobby-short-description-en">
+              {t.hobbies.shortDescription} ({t.common.english})
+            </Label>
+            <Input
+              id="hobby-short-description-en"
+              value={form.short_description_en}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, short_description_en: e.target.value }))
+              }
+            />
+          </div>
+
+          {/* Short Description FR */}
+          <div className="space-y-2">
+            <Label htmlFor="hobby-short-description-fr">
+              {t.hobbies.shortDescription} ({t.common.french})
+            </Label>
+            <Input
+              id="hobby-short-description-fr"
+              value={form.short_description_fr}
+              onChange={(e) =>
+                setForm((f) => ({ ...f, short_description_fr: e.target.value }))
+              }
             />
           </div>
 
@@ -449,10 +485,22 @@ export default function AdminHobbiesPage() {
                   </Button>
                 </div>
                 </CardHeader>
-                <CardContent>
+                <CardContent className="space-y-2">
                   <p className="text-sm text-muted-foreground">
                     {hobby.name_fr}
                   </p>
+                  {hobby.short_description_en ? (
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">{t.common.english}: </span>
+                      {hobby.short_description_en}
+                    </p>
+                  ) : null}
+                  {hobby.short_description_fr ? (
+                    <p className="text-sm text-muted-foreground">
+                      <span className="font-medium text-foreground">{t.common.french}: </span>
+                      {hobby.short_description_fr}
+                    </p>
+                  ) : null}
                   <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
                     {hobby.icon && (
                       <Badge variant="secondary" className="text-xs">

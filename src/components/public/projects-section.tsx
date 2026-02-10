@@ -17,7 +17,7 @@ export function ProjectsSection({
       <h2 className="terminal-heading text-2xl font-semibold tracking-tight text-foreground">
         <span className="heading-prefix" aria-hidden="true">{"// "}</span>{t.projects.title}
       </h2>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4">
         {projects.map((project) => (
           <article key={project.id} className="terminal-card card-3d-hover flex h-full flex-col overflow-hidden rounded-xl">
               {/* Terminal window title bar */}
@@ -47,7 +47,7 @@ export function ProjectsSection({
                 <div>
                   <h3 className="font-mono text-lg font-semibold text-foreground">{project.title}</h3>
                   {project.description ? (
-                    <p className="mt-2 text-base text-muted-foreground">
+                    <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                       {project.description}
                     </p>
                   ) : null}

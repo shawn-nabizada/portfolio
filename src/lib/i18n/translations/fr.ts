@@ -169,6 +169,7 @@ export const fr: Translations = {
     addHobby: "Ajouter un loisir",
     editHobby: "Modifier le loisir",
     hobbyName: "Nom du loisir",
+    shortDescription: "Description courte",
     icon: "Icône",
   },
   resume: {

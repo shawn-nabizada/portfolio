@@ -5,6 +5,12 @@ import { requireAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
 import { revalidatePortfolioPages } from "@/lib/revalidation";
 
+function normalizeOptionalText(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
 export async function GET() {
   const supabase = await createClient();
 
@@ -27,7 +33,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = await request.json();
-  const { name_en, name_fr, icon, order } = body;
+  const { name_en, name_fr, short_description_en, short_description_fr, icon, order } = body;
 
   if (!name_en || !name_fr) {
     return apiError("name_en and name_fr are required", 400);
@@ -40,6 +46,8 @@ export async function POST(request: NextRequest) {
     .insert({
       name_en,
       name_fr,
+      short_description_en: normalizeOptionalText(short_description_en),
+      short_description_fr: normalizeOptionalText(short_description_fr),
       icon: icon || null,
       order: order ?? 0,
     })

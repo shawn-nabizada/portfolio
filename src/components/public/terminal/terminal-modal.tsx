@@ -106,6 +106,18 @@ export function TerminalModal({
   }, [open]);
 
   useEffect(() => {
+    if (!shouldRender) {
+      delete document.body.dataset.terminalOpen;
+      return;
+    }
+
+    document.body.dataset.terminalOpen = "true";
+    return () => {
+      delete document.body.dataset.terminalOpen;
+    };
+  }, [shouldRender]);
+
+  useEffect(() => {
     if (!shouldRender) return;
 
     const previousOverflow = document.body.style.overflow;

@@ -1,5 +1,6 @@
 import { getTranslations, type Locale } from "@/lib/i18n";
 import { PublicNavbar } from "@/components/public/navbar";
+import { CursorGlitchTrail } from "@/components/public/cursor-glitch-trail";
 
 export default async function PublicLayout({
   children,
@@ -16,6 +17,7 @@ export default async function PublicLayout({
       <a href="#main-content" className="skip-to-content">
         {locale === "fr" ? "Aller au contenu" : "Skip to content"}
       </a>
+      <CursorGlitchTrail />
       <PublicNavbar locale={locale as Locale} nav={t.nav} />
       <main id="main-content" className="public-typography-scale mx-auto max-w-5xl px-4 sm:px-6 lg:px-8">{children}</main>
     </div>

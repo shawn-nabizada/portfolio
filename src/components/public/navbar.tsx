@@ -108,19 +108,21 @@ export function PublicNavbar({
       </div>
 
       <div className="mx-auto hidden h-16 w-full items-center gap-4 px-4 xl:px-6 2xl:px-8 min-[1225px]:flex">
-        <a
-          href={`/${locale}`}
-          onClick={scrollToTop}
-          className="shrink-0 font-mono text-md text-terminal-green tracking-tight whitespace-nowrap"
-        >
-          shawn_nabizada@portfolio:~$
-        </a>
+        <div className="flex min-w-0 flex-1 items-center">
+          <a
+            href={`/${locale}`}
+            onClick={scrollToTop}
+            className="truncate font-mono text-md text-terminal-green tracking-tight whitespace-nowrap"
+          >
+            shawn_nabizada@portfolio:~$
+          </a>
+        </div>
 
         <nav
           aria-label="Main navigation"
-          className="min-w-0 flex-1"
+          className="shrink-0"
         >
-          <div className="flex items-center justify-center gap-[clamp(0.25rem,0.6vw,0.75rem)]">
+          <div className="flex items-center gap-[clamp(0.25rem,0.6vw,0.75rem)]">
             {navOrder.map((item) => (
               <a
                 key={item}
@@ -133,7 +135,7 @@ export function PublicNavbar({
           </div>
         </nav>
 
-        <div className="flex shrink-0 items-center gap-2 xl:gap-3">
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-2 xl:gap-3">
           <ModeToggle />
           <LocaleToggle locale={locale} />
         </div>

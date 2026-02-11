@@ -27,6 +27,7 @@ export function PublicNavbar({
 }) {
   const [open, setOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [hovered, setHovered] = useState(false);
 
   const scrollToTop = useCallback((e: React.MouseEvent) => {
     e.preventDefault();
@@ -68,14 +69,25 @@ export function PublicNavbar({
     return () => window.removeEventListener("scroll", handleScroll);
   }, [open]);
 
+  const isVisible = !hidden || hovered;
+
   return (
-    <header
-      className={cn(
-        "sticky top-0 z-40 border-b border-terminal-border bg-background/90 backdrop-blur transition-transform duration-300",
-        hidden ? "-translate-y-full" : "translate-y-0"
+    <>
+      {hidden && !hovered && (
+        <div
+          className="fixed top-0 left-0 right-0 h-16 z-50"
+          onMouseEnter={() => setHovered(true)}
+        />
       )}
-      onKeyDown={handleKeyDown}
-    >
+      <header
+        className={cn(
+          "sticky top-0 z-40 border-b border-terminal-border bg-background/90 backdrop-blur transition-transform duration-300",
+          isVisible ? "translate-y-0" : "-translate-y-full"
+        )}
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onKeyDown={handleKeyDown}
+      >
       <div className="mx-auto flex h-16 items-center justify-between px-4 sm:px-6 min-[1225px]:hidden">
         <a
           href={`/${locale}`}
@@ -95,27 +107,25 @@ export function PublicNavbar({
         </button>
       </div>
 
-      <div className="mx-auto hidden h-16 w-full max-w-[min(96vw,112rem)] items-center gap-[clamp(0.5rem,1.4vw,1.6rem)] px-4 xl:px-6 2xl:px-8 min-[1225px]:flex">
-        <div className="min-w-0 basis-[clamp(11rem,22vw,24rem)] shrink-0">
-          <a
-            href={`/${locale}`}
-            onClick={scrollToTop}
-            className="block truncate font-mono text-md text-terminal-green tracking-tight"
-          >
-            shawn_nabizada@portfolio:~$
-          </a>
-        </div>
+      <div className="mx-auto hidden h-16 w-full items-center gap-4 px-4 xl:px-6 2xl:px-8 min-[1225px]:flex">
+        <a
+          href={`/${locale}`}
+          onClick={scrollToTop}
+          className="shrink-0 font-mono text-md text-terminal-green tracking-tight whitespace-nowrap"
+        >
+          shawn_nabizada@portfolio:~$
+        </a>
 
         <nav
           aria-label="Main navigation"
-          className="min-w-0 flex-1 overflow-x-auto overflow-y-visible px-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden"
+          className="min-w-0 flex-1"
         >
-          <div className="mx-auto flex w-max items-center justify-center gap-[clamp(0.3rem,0.75vw,0.85rem)]">
+          <div className="flex items-center justify-center gap-[clamp(0.25rem,0.6vw,0.75rem)]">
             {navOrder.map((item) => (
               <a
                 key={item}
                 href={`#${item}`}
-                className="nav-link px-1 py-1 font-mono text-[clamp(12px,0.8vw,14px)] text-muted-foreground transition-colors hover:text-terminal-green whitespace-nowrap"
+                className="nav-link px-1 py-1 font-mono text-[clamp(12px,0.85vw,14px)] text-muted-foreground transition-colors hover:text-terminal-green whitespace-nowrap"
               >
                 ./{nav[item].toLowerCase()}
               </a>
@@ -123,7 +133,7 @@ export function PublicNavbar({
           </div>
         </nav>
 
-        <div className="flex basis-[clamp(11rem,22vw,24rem)] shrink-0 items-center justify-end gap-2 xl:gap-3">
+        <div className="flex shrink-0 items-center gap-2 xl:gap-3">
           <ModeToggle />
           <LocaleToggle locale={locale} />
         </div>
@@ -154,5 +164,6 @@ export function PublicNavbar({
         </div>
       </nav>
     </header>
+    </>
   );
 }

@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
+import { createPaginatedResponse, readPaginationParams } from "@/lib/pagination";
 import { revalidatePortfolioPages } from "@/lib/revalidation";
 
 function normalizeMonthDate(value: string | null | undefined): string | null {
@@ -18,13 +19,22 @@ function normalizeBulletList(value: unknown): string[] {
     .filter((item) => item.length > 0);
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
+  const pagination = readPaginationParams(request.nextUrl.searchParams);
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("projects")
-    .select("*, project_skills(skill_id, skills(*))")
+    .select(
+      "*, project_skills(skill_id, skills(*))",
+      pagination.enabled ? { count: "exact" } : undefined
+    )
     .order("order");
+  if (pagination.enabled) {
+    query = query.range(pagination.from, pagination.to);
+  }
+
+  const { data, error, count } = await query;
 
   if (error) {
     return apiError(error.message);
@@ -42,6 +52,17 @@ export async function GET() {
       skills,
     };
   });
+
+  if (pagination.enabled) {
+    return apiSuccess(
+      createPaginatedResponse(
+        projects,
+        pagination.page,
+        pagination.pageSize,
+        count ?? 0
+      )
+    );
+  }
 
   return apiSuccess(projects);
 }

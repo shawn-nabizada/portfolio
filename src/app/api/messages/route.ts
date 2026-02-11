@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
+import { createPaginatedResponse, readPaginationParams } from "@/lib/pagination";
 
 const MIN_FORM_FILL_MS = 3000;
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
@@ -67,19 +68,35 @@ export async function GET(request: NextRequest) {
 
   const adminClient = createAdminClient();
   const readParam = request.nextUrl.searchParams.get("read");
+  const pagination = readPaginationParams(request.nextUrl.searchParams);
   let query = adminClient
     .from("contact_messages")
-    .select("*")
+    .select("*", pagination.enabled ? { count: "exact" } : undefined)
     .order("created_at", { ascending: false });
 
   if (readParam === "true" || readParam === "false") {
     query = query.eq("read", readParam === "true");
   }
 
-  const { data, error } = await query;
+  if (pagination.enabled) {
+    query = query.range(pagination.from, pagination.to);
+  }
+
+  const { data, error, count } = await query;
 
   if (error) {
     return apiError(error.message);
+  }
+
+  if (pagination.enabled) {
+    return apiSuccess(
+      createPaginatedResponse(
+        data ?? [],
+        pagination.page,
+        pagination.pageSize,
+        count ?? 0
+      )
+    );
   }
 
   return apiSuccess(data ?? []);
@@ -138,7 +155,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data, error } = await supabase
+  const adminClient = createAdminClient();
+  const { data, error } = await adminClient
     .from("contact_messages")
     .insert({
       name,

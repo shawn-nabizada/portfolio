@@ -20,6 +20,11 @@ export const metadata: Metadata = {
     template: "%s | Portfolio",
   },
   description: "Personal developer portfolio",
+  icons: {
+    icon: "/default-favicon.ico",
+    shortcut: "/default-favicon.ico",
+    apple: "/default-favicon.ico",
+  },
 };
 
 export default function RootLayout({

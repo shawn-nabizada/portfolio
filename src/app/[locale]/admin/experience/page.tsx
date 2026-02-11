@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
   Pencil,
@@ -38,7 +38,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MonthYearField } from "@/components/admin/month-year-field";
+import { PaginationControls } from "@/components/admin/pagination-controls";
 import { fetchJson, fetchMutation } from "@/lib/http/mutation";
+import { DEFAULT_PAGE_SIZE, parsePageQuery } from "@/lib/pagination";
+import type { PaginatedResponse } from "@/lib/types/pagination";
 import { toast } from "sonner";
 
 // ─── Experience Dialog ──────────────────────────────────────────────────
@@ -54,6 +57,8 @@ interface ExperienceFormData {
   is_current: boolean;
   order: number;
 }
+
+const PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
 function ExperienceDialog({
   open,
@@ -385,12 +390,19 @@ function toIsoMonthDate(value: string) {
 // ─── Main Page ──────────────────────────────────────────────────────────
 export default function AdminExperiencePage() {
   const params = useParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const locale = (params.locale as string) || "en";
   const t = getTranslations(locale as Locale);
+  const pageFromUrl = parsePageQuery(searchParams.get("page"));
 
   // Data
   const [experiences, setExperiences] = useState<Experience[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(pageFromUrl);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -402,22 +414,49 @@ export default function AdminExperiencePage() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   // Fetch data
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (activePage: number) => {
+    setIsLoading(true);
     try {
-      const data = await fetchJson<Experience[]>("/api/experience");
-      setExperiences(data);
+      const data = await fetchJson<PaginatedResponse<Experience>>(
+        `/api/experience?page=${activePage}&pageSize=${PAGE_SIZE}`
+      );
+      setExperiences(data.items);
+      setTotalPages(data.totalPages);
+      setTotalItems(data.total);
+      return data;
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to load experience data"
       );
+      return null;
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    setPage(pageFromUrl);
+  }, [pageFromUrl]);
+
+  useEffect(() => {
+    fetchData(page);
+  }, [fetchData, page]);
+
+  const updatePage = (nextPage: number) => {
+    const boundedPage = Math.min(Math.max(1, nextPage), Math.max(1, totalPages));
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", String(boundedPage));
+    params.set("pageSize", String(PAGE_SIZE));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    setPage(boundedPage);
+  };
+
+  const refreshAfterMutation = async () => {
+    const data = await fetchData(page);
+    if (data && data.items.length === 0 && data.total > 0 && page > 1) {
+      updatePage(page - 1);
+    }
+  };
 
   // ── CRUD ──────────────────────────────────────────────────────────
   const handleSave = async (data: ExperienceFormData) => {
@@ -448,7 +487,7 @@ export default function AdminExperiencePage() {
         });
       }
       toast.success(t.common.savedSuccessfully);
-      await fetchData();
+      await refreshAfterMutation();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
       throw error;
@@ -476,7 +515,7 @@ export default function AdminExperiencePage() {
       await fetchMutation(`/api/experience/${deleteTargetId}`, { method: "DELETE" });
       toast.success(t.common.deletedSuccessfully);
       setDeleteTargetId(null);
-      await fetchData();
+      await refreshAfterMutation();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
     }
@@ -582,6 +621,19 @@ export default function AdminExperiencePage() {
               </CardContent>
             </Card>
           ))}
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            isLoading={isLoading}
+            onPageChange={updatePage}
+            labels={{
+              previous: t.common.previousPage,
+              next: t.common.nextPage,
+              page: t.common.page,
+              of: t.common.of,
+            }}
+          />
         </div>
       )}
 

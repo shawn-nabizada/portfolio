@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, Pencil, Trash2 } from "lucide-react";
 import { getTranslations, type Locale } from "@/lib/i18n";
 import type { SocialLink } from "@/lib/types/database";
@@ -44,6 +44,9 @@ import {
   normalizeSocialUrl,
 } from "@/lib/social-presets";
 import { getSocialIconByPreset } from "@/lib/social-icons";
+import { PaginationControls } from "@/components/admin/pagination-controls";
+import { DEFAULT_PAGE_SIZE, parsePageQuery } from "@/lib/pagination";
+import type { PaginatedResponse } from "@/lib/types/pagination";
 
 interface FormData {
   preset: SocialPresetKey | "";
@@ -57,32 +60,68 @@ const initialForm: FormData = {
   order: 0,
 };
 
+const PAGE_SIZE = DEFAULT_PAGE_SIZE;
+
 export default function AdminSocialLinksPage() {
   const params = useParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const locale = (params.locale as string) || "en";
   const t = getTranslations(locale as Locale);
+  const pageFromUrl = parsePageQuery(searchParams.get("page"));
 
   const [items, setItems] = useState<SocialLink[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(pageFromUrl);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [editingItem, setEditingItem] = useState<SocialLink | null>(null);
   const [form, setForm] = useState<FormData>(initialForm);
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (activePage: number) => {
+    setIsLoading(true);
     try {
-      const data = await fetchJson<SocialLink[]>("/api/social-links");
-      setItems(data);
+      const data = await fetchJson<PaginatedResponse<SocialLink>>(
+        `/api/social-links?page=${activePage}&pageSize=${PAGE_SIZE}`
+      );
+      setItems(data.items);
+      setTotalPages(data.totalPages);
+      setTotalItems(data.total);
+      return data;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
+      return null;
     } finally {
       setIsLoading(false);
     }
   }, [t.common.errorOccurred]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    setPage(pageFromUrl);
+  }, [pageFromUrl]);
+
+  useEffect(() => {
+    fetchData(page);
+  }, [fetchData, page]);
+
+  const updatePage = (nextPage: number) => {
+    const boundedPage = Math.min(Math.max(1, nextPage), Math.max(1, totalPages));
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", String(boundedPage));
+    params.set("pageSize", String(PAGE_SIZE));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    setPage(boundedPage);
+  };
+
+  const refreshAfterMutation = async () => {
+    const data = await fetchData(page);
+    if (data && data.items.length === 0 && data.total > 0 && page > 1) {
+      updatePage(page - 1);
+    }
+  };
 
   const openAdd = () => {
     setEditingItem(null);
@@ -141,7 +180,7 @@ export default function AdminSocialLinksPage() {
 
       toast.success(t.common.savedSuccessfully);
       setDialogOpen(false);
-      await fetchData();
+      await refreshAfterMutation();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
     }
@@ -154,7 +193,7 @@ export default function AdminSocialLinksPage() {
       await fetchMutation(`/api/social-links/${deleteId}`, { method: "DELETE" });
       toast.success(t.common.deletedSuccessfully);
       setDeleteId(null);
-      await fetchData();
+      await refreshAfterMutation();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
     }
@@ -188,8 +227,9 @@ export default function AdminSocialLinksPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {items.map((item) => {
+        <div className="space-y-4">
+          <div className="space-y-3">
+            {items.map((item) => {
             const presetKey = inferSocialPresetKey({
               icon: item.icon,
               platform: item.platform,
@@ -198,8 +238,8 @@ export default function AdminSocialLinksPage() {
             const preset = presetKey ? getSocialPreset(presetKey) : null;
             const Icon = getSocialIconByPreset(presetKey);
 
-            return (
-              <Card key={item.id}>
+              return (
+                <Card key={item.id}>
                 <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                   <div>
                     <CardTitle className="flex items-center gap-2 text-base">
@@ -228,9 +268,23 @@ export default function AdminSocialLinksPage() {
                     </Button>
                   </div>
                 </CardHeader>
-              </Card>
-            );
-          })}
+                </Card>
+              );
+            })}
+          </div>
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            isLoading={isLoading}
+            onPageChange={updatePage}
+            labels={{
+              previous: t.common.previousPage,
+              next: t.common.nextPage,
+              page: t.common.page,
+              of: t.common.of,
+            }}
+          />
         </div>
       )}
 

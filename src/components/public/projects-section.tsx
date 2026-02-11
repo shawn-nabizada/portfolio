@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Github, ExternalLink } from "lucide-react";
 import { AnimatedSection } from "@/components/public/animated-section";
 import type { Locale, Translations } from "@/lib/i18n";
@@ -61,10 +62,11 @@ export function ProjectsSection({
 
               {project.image_url ? (
                 <div className="relative overflow-hidden">
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
+                  <Image
                     src={project.image_url}
                     alt={project.title}
+                    width={800}
+                    height={176}
                     className="h-44 w-full object-cover"
                   />
                   {/* Scanline overlay on image */}

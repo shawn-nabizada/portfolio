@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import Link from "next/link";
+import { useCallback, useEffect, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { ModeToggle } from "@/components/mode-toggle";
 import { LocaleToggle } from "@/components/public/locale-toggle";
@@ -28,6 +27,11 @@ export function PublicNavbar({
 }) {
   const [open, setOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
+
+  const scrollToTop = useCallback((e: React.MouseEvent) => {
+    e.preventDefault();
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Escape" && open) {
@@ -73,12 +77,13 @@ export function PublicNavbar({
       onKeyDown={handleKeyDown}
     >
       <div className="mx-auto flex h-16 items-center justify-between px-4 sm:px-6 min-[1225px]:hidden">
-        <Link
+        <a
           href={`/${locale}`}
+          onClick={scrollToTop}
           className="max-w-[calc(100vw-5.5rem)] truncate font-mono text-md text-terminal-green tracking-tight"
         >
           shawn_nabizada@portfolio:~$
-        </Link>
+        </a>
 
         <button
           className="flex items-center justify-center w-9 h-9 rounded-md border border-terminal-border text-muted-foreground hover:text-terminal-green hover:border-terminal-green transition-colors"
@@ -92,12 +97,13 @@ export function PublicNavbar({
 
       <div className="mx-auto hidden h-16 w-full max-w-[min(96vw,112rem)] items-center gap-[clamp(0.5rem,1.4vw,1.6rem)] px-4 xl:px-6 2xl:px-8 min-[1225px]:flex">
         <div className="min-w-0 basis-[clamp(11rem,22vw,24rem)] shrink-0">
-          <Link
+          <a
             href={`/${locale}`}
+            onClick={scrollToTop}
             className="block truncate font-mono text-md text-terminal-green tracking-tight"
           >
             shawn_nabizada@portfolio:~$
-          </Link>
+          </a>
         </div>
 
         <nav

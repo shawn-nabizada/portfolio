@@ -19,7 +19,7 @@ export function SkillsSection({
       <h2 className="terminal-heading text-2xl font-semibold tracking-tight text-foreground">
         <span className="heading-prefix" aria-hidden="true">{"// "}</span>{t.skills.title}
       </h2>
-      <div className="terminal-card card-3d-hover rounded-lg bg-[var(--card)] p-5 font-mono">
+      <div className="terminal-card card-3d-hover overflow-x-auto rounded-lg bg-[var(--card)] p-5 font-mono">
         <p className="text-xs text-terminal-dim">
           <span className="text-terminal-green">shawn_nabizada@portfolio</span>
           <span className="text-terminal-dim">:</span>

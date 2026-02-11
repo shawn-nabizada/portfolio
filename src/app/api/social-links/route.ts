@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
+import { createPaginatedResponse, readPaginationParams } from "@/lib/pagination";
 import { revalidatePortfolioPages } from "@/lib/revalidation";
 import {
   getSocialPreset,
@@ -10,15 +11,33 @@ import {
   normalizeSocialUrl,
 } from "@/lib/social-presets";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
   const supabase = await createClient();
-  const { data, error } = await supabase
+  const pagination = readPaginationParams(request.nextUrl.searchParams);
+
+  let query = supabase
     .from("social_links")
-    .select("*")
+    .select("*", pagination.enabled ? { count: "exact" } : undefined)
     .order("order");
+  if (pagination.enabled) {
+    query = query.range(pagination.from, pagination.to);
+  }
+
+  const { data, error, count } = await query;
 
   if (error) {
     return apiError(error.message);
+  }
+
+  if (pagination.enabled) {
+    return apiSuccess(
+      createPaginatedResponse(
+        data ?? [],
+        pagination.page,
+        pagination.pageSize,
+        count ?? 0
+      )
+    );
   }
 
   return apiSuccess(data ?? []);

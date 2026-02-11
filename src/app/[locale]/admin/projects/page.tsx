@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
   Pencil,
@@ -40,7 +40,10 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { MonthYearField } from "@/components/admin/month-year-field";
+import { PaginationControls } from "@/components/admin/pagination-controls";
 import { fetchJson, fetchMutation } from "@/lib/http/mutation";
+import { DEFAULT_PAGE_SIZE, parsePageQuery } from "@/lib/pagination";
+import type { PaginatedResponse } from "@/lib/types/pagination";
 import { toast } from "sonner";
 
 // ─── Project Dialog ─────────────────────────────────────────────────────
@@ -61,6 +64,8 @@ interface ProjectFormData {
   order: number;
   skill_ids: string[];
 }
+
+const PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
 function formatDate(dateStr: string) {
   if (!dateStr) return "";
@@ -587,13 +592,20 @@ function DeleteConfirmDialog({
 // ─── Main Page ──────────────────────────────────────────────────────────
 export default function AdminProjectsPage() {
   const params = useParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const locale = (params.locale as string) || "en";
   const t = getTranslations(locale as Locale);
+  const pageFromUrl = parsePageQuery(searchParams.get("page"));
 
   // Data
   const [projects, setProjects] = useState<Project[]>([]);
   const [allSkills, setAllSkills] = useState<Skill[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(pageFromUrl);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   // Project dialog
   const [projectDialogOpen, setProjectDialogOpen] = useState(false);
@@ -604,26 +616,53 @@ export default function AdminProjectsPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   // Fetch data
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (activePage: number) => {
+    setIsLoading(true);
     try {
       const [projectsData, skillsData] = await Promise.all([
-        fetchJson<Project[]>("/api/projects"),
+        fetchJson<PaginatedResponse<Project>>(
+          `/api/projects?page=${activePage}&pageSize=${PAGE_SIZE}`
+        ),
         fetchJson<Skill[]>("/api/skills"),
       ]);
-      setProjects(projectsData);
+      setProjects(projectsData.items);
+      setTotalPages(projectsData.totalPages);
+      setTotalItems(projectsData.total);
       setAllSkills(skillsData);
+      return projectsData;
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to load projects data"
       );
+      return null;
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    setPage(pageFromUrl);
+  }, [pageFromUrl]);
+
+  useEffect(() => {
+    fetchData(page);
+  }, [fetchData, page]);
+
+  const updatePage = (nextPage: number) => {
+    const boundedPage = Math.min(Math.max(1, nextPage), Math.max(1, totalPages));
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", String(boundedPage));
+    params.set("pageSize", String(PAGE_SIZE));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    setPage(boundedPage);
+  };
+
+  const refreshAfterMutation = async () => {
+    const data = await fetchData(page);
+    if (data && data.items.length === 0 && data.total > 0 && page > 1) {
+      updatePage(page - 1);
+    }
+  };
 
   // ── Project CRUD ────────────────────────────────────────────────────
   const handleSaveProject = async (data: ProjectFormData) => {
@@ -663,7 +702,7 @@ export default function AdminProjectsPage() {
         });
       }
       toast.success(t.common.savedSuccessfully);
-      await fetchData();
+      await refreshAfterMutation();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
       throw error;
@@ -693,7 +732,7 @@ export default function AdminProjectsPage() {
       await fetchMutation(`/api/projects/${deleteTargetId}`, { method: "DELETE" });
       toast.success(t.common.deletedSuccessfully);
       setDeleteTargetId(null);
-      await fetchData();
+      await refreshAfterMutation();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
     }
@@ -736,9 +775,10 @@ export default function AdminProjectsPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((project) => (
-            <Card key={project.id} className="flex flex-col">
+        <div className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {projects.map((project) => (
+              <Card key={project.id} className="flex flex-col">
               {/* Image thumbnail */}
               {project.image_url && (
                 <div className="relative h-40 w-full overflow-hidden rounded-t-lg">
@@ -851,8 +891,22 @@ export default function AdminProjectsPage() {
                   {t.common.order}: {project.order}
                 </div>
               </CardContent>
-            </Card>
-          ))}
+              </Card>
+            ))}
+          </div>
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            isLoading={isLoading}
+            onPageChange={updatePage}
+            labels={{
+              previous: t.common.previousPage,
+              next: t.common.nextPage,
+              page: t.common.page,
+              of: t.common.of,
+            }}
+          />
         </div>
       )}
 

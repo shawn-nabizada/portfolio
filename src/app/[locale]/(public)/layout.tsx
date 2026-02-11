@@ -61,7 +61,7 @@ export default async function PublicLayout({
   );
 
   return (
-    <div className="scanline-overlay noise-bg min-h-screen bg-background text-foreground">
+    <div className="scanline-overlay noise-bg min-h-screen overflow-x-clip bg-background text-foreground">
       <a href="#main-content" className="skip-to-content">
         {locale === "fr" ? "Aller au contenu" : "Skip to content"}
       </a>

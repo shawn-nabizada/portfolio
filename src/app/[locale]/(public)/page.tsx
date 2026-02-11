@@ -1,7 +1,7 @@
-import type { Metadata } from "next";
 import { getTranslations, locales, type Locale } from "@/lib/i18n";
 import { getPortfolioData } from "@/lib/portfolio-data";
-import type { Profile, SocialLink } from "@/lib/types/database";
+import type { Experience, Profile, SocialLink } from "@/lib/types/database";
+import { localizedValue } from "@/lib/site-metadata";
 import { ViewTracker } from "@/components/public/view-tracker";
 import { HeroSection } from "@/components/public/hero-section";
 import { SocialLinksSection } from "@/components/public/social-links-section";
@@ -15,16 +15,6 @@ import { TestimonialsSection } from "@/components/public/testimonials-section";
 import { ContactSection } from "@/components/public/contact-section";
 import { TerminalTrigger } from "@/components/public/terminal/terminal-trigger";
 
-
-function localizedValue(
-  value: unknown,
-  locale: Locale
-): string | undefined {
-  if (!value || typeof value !== "object") return undefined;
-  const obj = value as { en?: string; fr?: string };
-  return locale === "fr" ? obj.fr || obj.en : obj.en || obj.fr;
-}
-
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
 }
@@ -34,11 +24,13 @@ function buildPersonJsonLd({
   profile,
   settings,
   socialLinks,
+  experience,
 }: {
   locale: Locale;
   profile: Profile | null;
   settings: Record<string, unknown>;
   socialLinks: SocialLink[];
+  experience: Experience[];
 }): Record<string, unknown> | null {
   const name = profile?.full_name?.trim();
   if (!name) return null;
@@ -74,61 +66,19 @@ function buildPersonJsonLd({
     personJsonLd.sameAs = sameAs;
   }
 
-  return personJsonLd;
-}
-
-export async function generateMetadata({
-  params,
-}: {
-  params: Promise<{ locale: string }>;
-}): Promise<Metadata> {
-  const { locale } = await params;
-  const typedLocale = locale as Locale;
-  const fallbackDescription =
-    typedLocale === "fr" ? "Portfolio personnel" : "Personal portfolio";
-
-  try {
-    const data = await getPortfolioData(typedLocale);
-
-    const title = localizedValue(data.settings.site_title, typedLocale) || "Portfolio";
-    const description =
-      localizedValue(data.settings.site_description, typedLocale) ||
-      fallbackDescription;
-    const avatarIcon = data.profile?.avatar_url || undefined;
-
-    return {
-      title,
-      description,
-      ...(avatarIcon
-        ? {
-            icons: {
-              icon: avatarIcon,
-              shortcut: avatarIcon,
-              apple: avatarIcon,
-            },
-          }
-        : {}),
-      openGraph: {
-        title,
-        description,
-        type: "website",
-        locale: typedLocale,
-      },
-    };
-  } catch (error) {
-    console.error("Failed to load metadata from portfolio data", error);
+  const currentJob = experience.find((e) => !e.end_date);
+  if (currentJob) {
+    const jobTitle = locale === "fr" ? currentJob.position_fr : currentJob.position_en;
+    if (jobTitle) personJsonLd.jobTitle = jobTitle;
+    if (currentJob.company) {
+      personJsonLd.worksFor = {
+        "@type": "Organization",
+        name: currentJob.company,
+      };
+    }
   }
 
-  return {
-    title: "Portfolio",
-    description: fallbackDescription,
-    openGraph: {
-      title: "Portfolio",
-      description: fallbackDescription,
-      type: "website",
-      locale: typedLocale,
-    },
-  };
+  return personJsonLd;
 }
 
 export default async function PublicPage({
@@ -145,6 +95,7 @@ export default async function PublicPage({
     profile: data.profile,
     settings: data.settings,
     socialLinks: data.socialLinks,
+    experience: data.experience,
   });
   const contactHoneypotEnabled = data.settings.contact_honeypot_enabled === true;
   const contactHoneypotVisible = data.settings.contact_honeypot_visible === true;

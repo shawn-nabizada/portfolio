@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   Plus,
   Pencil,
@@ -34,7 +34,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { PaginationControls } from "@/components/admin/pagination-controls";
 import { fetchJson, fetchMutation } from "@/lib/http/mutation";
+import { DEFAULT_PAGE_SIZE, parsePageQuery } from "@/lib/pagination";
+import type { PaginatedResponse } from "@/lib/types/pagination";
 import { toast } from "sonner";
 
 // ─── Hobby Dialog ───────────────────────────────────────────────────────
@@ -46,6 +49,8 @@ interface HobbyFormData {
   icon: string;
   order: number;
 }
+
+const PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
 function HobbyDialog({
   open,
@@ -331,12 +336,19 @@ function DeleteConfirmDialog({
 // ─── Main Page ──────────────────────────────────────────────────────────
 export default function AdminHobbiesPage() {
   const params = useParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const locale = (params.locale as string) || "en";
   const t = getTranslations(locale as Locale);
+  const pageFromUrl = parsePageQuery(searchParams.get("page"));
 
   // Data
   const [hobbies, setHobbies] = useState<Hobby[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(pageFromUrl);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
 
   // Dialog
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -347,22 +359,49 @@ export default function AdminHobbiesPage() {
   const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
 
   // Fetch data
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (activePage: number) => {
+    setIsLoading(true);
     try {
-      const data = await fetchJson<Hobby[]>("/api/hobbies");
-      setHobbies(data);
+      const data = await fetchJson<PaginatedResponse<Hobby>>(
+        `/api/hobbies?page=${activePage}&pageSize=${PAGE_SIZE}`
+      );
+      setHobbies(data.items);
+      setTotalPages(data.totalPages);
+      setTotalItems(data.total);
+      return data;
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to load hobbies data"
       );
+      return null;
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    setPage(pageFromUrl);
+  }, [pageFromUrl]);
+
+  useEffect(() => {
+    fetchData(page);
+  }, [fetchData, page]);
+
+  const updatePage = (nextPage: number) => {
+    const boundedPage = Math.min(Math.max(1, nextPage), Math.max(1, totalPages));
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("page", String(boundedPage));
+    params.set("pageSize", String(PAGE_SIZE));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    setPage(boundedPage);
+  };
+
+  const refreshAfterMutation = async () => {
+    const data = await fetchData(page);
+    if (data && data.items.length === 0 && data.total > 0 && page > 1) {
+      updatePage(page - 1);
+    }
+  };
 
   // ── CRUD ──────────────────────────────────────────────────────────
   const handleSave = async (data: HobbyFormData) => {
@@ -381,7 +420,7 @@ export default function AdminHobbiesPage() {
         });
       }
       toast.success(t.common.savedSuccessfully);
-      await fetchData();
+      await refreshAfterMutation();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
       throw error;
@@ -409,7 +448,7 @@ export default function AdminHobbiesPage() {
       await fetchMutation(`/api/hobbies/${deleteTargetId}`, { method: "DELETE" });
       toast.success(t.common.deletedSuccessfully);
       setDeleteTargetId(null);
-      await fetchData();
+      await refreshAfterMutation();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
     }
@@ -452,69 +491,84 @@ export default function AdminHobbiesPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {hobbies.map((hobby) => {
-            const Icon = getHobbyIcon(hobby.icon);
-            return (
-              <Card key={hobby.id}>
-                <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                  <CardTitle className="text-sm font-medium">
-                    <div className="flex items-center gap-2">
-                      <Icon className="h-4 w-4 text-muted-foreground" />
-                      {hobby.name_en}
+        <div className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {hobbies.map((hobby) => {
+              const Icon = getHobbyIcon(hobby.icon);
+              return (
+                <Card key={hobby.id}>
+                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                    <CardTitle className="text-sm font-medium">
+                      <div className="flex items-center gap-2">
+                        <Icon className="h-4 w-4 text-muted-foreground" />
+                        {hobby.name_en}
+                      </div>
+                    </CardTitle>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => openEdit(hobby)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                        <span className="sr-only">{t.common.edit}</span>
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => openDelete(hobby.id)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                        <span className="sr-only">{t.common.delete}</span>
+                      </Button>
                     </div>
-                  </CardTitle>
-                <div className="flex gap-1">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => openEdit(hobby)}
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    <span className="sr-only">{t.common.edit}</span>
-                  </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="h-8 w-8"
-                    onClick={() => openDelete(hobby.id)}
-                  >
-                    <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                    <span className="sr-only">{t.common.delete}</span>
-                  </Button>
-                </div>
-                </CardHeader>
-                <CardContent className="space-y-2">
-                  <p className="text-sm text-muted-foreground">
-                    {hobby.name_fr}
-                  </p>
-                  {hobby.short_description_en ? (
+                  </CardHeader>
+                  <CardContent className="space-y-2">
                     <p className="text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">{t.common.english}: </span>
-                      {hobby.short_description_en}
+                      {hobby.name_fr}
                     </p>
-                  ) : null}
-                  {hobby.short_description_fr ? (
-                    <p className="text-sm text-muted-foreground">
-                      <span className="font-medium text-foreground">{t.common.french}: </span>
-                      {hobby.short_description_fr}
-                    </p>
-                  ) : null}
-                  <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                    {hobby.icon && (
-                      <Badge variant="secondary" className="text-xs">
-                        {t.hobbies.icon}: {hobby.icon}
-                      </Badge>
-                    )}
-                    <span>
-                      {t.common.order}: {hobby.order}
-                    </span>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
+                    {hobby.short_description_en ? (
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">{t.common.english}: </span>
+                        {hobby.short_description_en}
+                      </p>
+                    ) : null}
+                    {hobby.short_description_fr ? (
+                      <p className="text-sm text-muted-foreground">
+                        <span className="font-medium text-foreground">{t.common.french}: </span>
+                        {hobby.short_description_fr}
+                      </p>
+                    ) : null}
+                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+                      {hobby.icon && (
+                        <Badge variant="secondary" className="text-xs">
+                          {t.hobbies.icon}: {hobby.icon}
+                        </Badge>
+                      )}
+                      <span>
+                        {t.common.order}: {hobby.order}
+                      </span>
+                    </div>
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            isLoading={isLoading}
+            onPageChange={updatePage}
+            labels={{
+              previous: t.common.previousPage,
+              next: t.common.nextPage,
+              page: t.common.page,
+              of: t.common.of,
+            }}
+          />
         </div>
       )}
 

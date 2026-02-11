@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
 import type { Locale } from "@/lib/i18n";
 import type { Profile } from "@/lib/types/database";
 import { AnimatedSection } from "@/components/public/animated-section";
@@ -72,10 +73,12 @@ export function HeroSection({
         </div>
 
         {profile?.avatar_url ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img
+          <Image
             src={profile.avatar_url}
             alt={profile.full_name || fallbackAvatarAlt}
+            width={256}
+            height={256}
+            priority
             className="avatar-float mx-auto h-64 w-64 shrink-0 self-center rounded-full border-2 border-terminal-green/40 object-cover shadow-[0_0_20px_var(--terminal-glow)] md:mx-0 md:self-auto md:-translate-x-2 lg:-translate-x-3"
           />
         ) : null}

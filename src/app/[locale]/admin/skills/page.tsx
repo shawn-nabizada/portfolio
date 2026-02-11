@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
-import { useParams } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Plus, Pencil, Trash2, Tag, Loader2 } from "lucide-react";
 import { getTranslations, type Locale } from "@/lib/i18n";
 import type { Skill, SkillCategory } from "@/lib/types/database";
@@ -44,10 +44,24 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { PaginationControls } from "@/components/admin/pagination-controls";
 import { fetchJson, fetchMutation } from "@/lib/http/mutation";
+import { DEFAULT_PAGE_SIZE, parsePageQuery } from "@/lib/pagination";
+import type { PaginatedResponse } from "@/lib/types/pagination";
 import { toast } from "sonner";
 
 const UNCATEGORIZED_VALUE = "__uncategorized__";
+const PAGE_SIZE = DEFAULT_PAGE_SIZE;
+const SKILLS_TAB = "skills";
+const CATEGORIES_TAB = "categories";
+type SkillsTab = typeof SKILLS_TAB | typeof CATEGORIES_TAB;
+
+function resolveSkillsTab(value: string | null): SkillsTab {
+  if (value === CATEGORIES_TAB) {
+    return CATEGORIES_TAB;
+  }
+  return SKILLS_TAB;
+}
 
 // ─── Category Dialog ────────────────────────────────────────────────────
 interface CategoryFormData {
@@ -386,13 +400,26 @@ function DeleteConfirmDialog({
 // ─── Main Page ──────────────────────────────────────────────────────────
 export default function AdminSkillsPage() {
   const params = useParams();
+  const pathname = usePathname();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const locale = (params.locale as string) || "en";
   const t = getTranslations(locale as Locale);
+  const activeTabFromUrl = resolveSkillsTab(searchParams.get("tab"));
+  const skillsPageFromUrl = parsePageQuery(searchParams.get("skillsPage"));
+  const categoriesPageFromUrl = parsePageQuery(searchParams.get("categoriesPage"));
 
   // Data
   const [skills, setSkills] = useState<Skill[]>([]);
   const [categories, setCategories] = useState<SkillCategory[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [activeTab, setActiveTab] = useState<SkillsTab>(activeTabFromUrl);
+  const [skillsPage, setSkillsPage] = useState(skillsPageFromUrl);
+  const [categoriesPage, setCategoriesPage] = useState(categoriesPageFromUrl);
+  const [skillsTotalPages, setSkillsTotalPages] = useState(1);
+  const [categoriesTotalPages, setCategoriesTotalPages] = useState(1);
+  const [skillsTotalItems, setSkillsTotalItems] = useState(0);
+  const [categoriesTotalItems, setCategoriesTotalItems] = useState(0);
 
   // Category dialog
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
@@ -416,26 +443,110 @@ export default function AdminSkillsPage() {
   ) + 1;
 
   // Fetch data
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (activeSkillsPage: number, activeCategoriesPage: number) => {
+    setIsLoading(true);
     try {
       const [skillsData, categoriesData] = await Promise.all([
-        fetchJson<Skill[]>("/api/skills"),
-        fetchJson<SkillCategory[]>("/api/skill-categories"),
+        fetchJson<PaginatedResponse<Skill>>(
+          `/api/skills?page=${activeSkillsPage}&pageSize=${PAGE_SIZE}`
+        ),
+        fetchJson<PaginatedResponse<SkillCategory>>(
+          `/api/skill-categories?page=${activeCategoriesPage}&pageSize=${PAGE_SIZE}`
+        ),
       ]);
-      setSkills(skillsData);
-      setCategories(categoriesData);
+      setSkills(skillsData.items);
+      setCategories(categoriesData.items);
+      setSkillsTotalPages(skillsData.totalPages);
+      setCategoriesTotalPages(categoriesData.totalPages);
+      setSkillsTotalItems(skillsData.total);
+      setCategoriesTotalItems(categoriesData.total);
+      return { skillsData, categoriesData };
     } catch (error) {
       toast.error(
         error instanceof Error ? error.message : "Failed to load skills data"
       );
+      return null;
     } finally {
       setIsLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    setActiveTab(activeTabFromUrl);
+  }, [activeTabFromUrl]);
+
+  useEffect(() => {
+    setSkillsPage(skillsPageFromUrl);
+  }, [skillsPageFromUrl]);
+
+  useEffect(() => {
+    setCategoriesPage(categoriesPageFromUrl);
+  }, [categoriesPageFromUrl]);
+
+  useEffect(() => {
+    fetchData(skillsPage, categoriesPage);
+  }, [fetchData, skillsPage, categoriesPage]);
+
+  const replaceUrlState = (updates: {
+    tab?: SkillsTab;
+    skillsPage?: number;
+    categoriesPage?: number;
+  }) => {
+    const nextTab = updates.tab ?? activeTab;
+    const nextSkillsPage = Math.max(1, updates.skillsPage ?? skillsPage);
+    const nextCategoriesPage = Math.max(1, updates.categoriesPage ?? categoriesPage);
+    const params = new URLSearchParams(searchParams.toString());
+
+    params.set("tab", nextTab);
+    params.set("skillsPage", String(nextSkillsPage));
+    params.set("categoriesPage", String(nextCategoriesPage));
+    params.set("pageSize", String(PAGE_SIZE));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+
+    setActiveTab(nextTab);
+    setSkillsPage(nextSkillsPage);
+    setCategoriesPage(nextCategoriesPage);
+  };
+
+  const updateTab = (nextTab: SkillsTab) => {
+    replaceUrlState({ tab: nextTab });
+  };
+
+  const updateSkillsPage = (nextPage: number) => {
+    const boundedPage = Math.min(Math.max(1, nextPage), Math.max(1, skillsTotalPages));
+    replaceUrlState({ skillsPage: boundedPage });
+  };
+
+  const updateCategoriesPage = (nextPage: number) => {
+    const boundedPage = Math.min(
+      Math.max(1, nextPage),
+      Math.max(1, categoriesTotalPages)
+    );
+    replaceUrlState({ categoriesPage: boundedPage });
+  };
+
+  const refreshAfterMutation = async (type?: "skill" | "category") => {
+    const data = await fetchData(skillsPage, categoriesPage);
+    if (!data) return;
+
+    if (
+      (!type || type === "skill") &&
+      data.skillsData.items.length === 0 &&
+      data.skillsData.total > 0 &&
+      skillsPage > 1
+    ) {
+      updateSkillsPage(skillsPage - 1);
+    }
+
+    if (
+      (!type || type === "category") &&
+      data.categoriesData.items.length === 0 &&
+      data.categoriesData.total > 0 &&
+      categoriesPage > 1
+    ) {
+      updateCategoriesPage(categoriesPage - 1);
+    }
+  };
 
   // ── Category CRUD ──────────────────────────────────────────────────
   const handleSaveCategory = async (data: CategoryFormData) => {
@@ -454,7 +565,7 @@ export default function AdminSkillsPage() {
         });
       }
       toast.success(t.common.savedSuccessfully);
-      await fetchData();
+      await refreshAfterMutation("category");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
       throw error;
@@ -493,7 +604,7 @@ export default function AdminSkillsPage() {
         });
       }
       toast.success(t.common.savedSuccessfully);
-      await fetchData();
+      await refreshAfterMutation("skill");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
       throw error;
@@ -527,8 +638,9 @@ export default function AdminSkillsPage() {
     try {
       await fetchMutation(endpoint, { method: "DELETE" });
       toast.success(t.common.deletedSuccessfully);
+      const targetType = deleteTarget.type;
       setDeleteTarget(null);
-      await fetchData();
+      await refreshAfterMutation(targetType);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
     }
@@ -564,7 +676,10 @@ export default function AdminSkillsPage() {
         <h1 className="text-3xl font-bold tracking-tight">{t.skills.title}</h1>
       </div>
 
-      <Tabs defaultValue="skills">
+      <Tabs
+        value={activeTab}
+        onValueChange={(value) => updateTab(resolveSkillsTab(value))}
+      >
         <TabsList>
           <TabsTrigger value="skills">{t.skills.title}</TabsTrigger>
           <TabsTrigger value="categories">{t.skills.category}</TabsTrigger>
@@ -586,63 +701,78 @@ export default function AdminSkillsPage() {
               </CardContent>
             </Card>
           ) : (
-            <Card>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>
-                        {t.skills.skillName} ({t.common.english})
-                      </TableHead>
-                      <TableHead>
-                        {t.skills.skillName} ({t.common.french})
-                      </TableHead>
-                      <TableHead>{t.skills.category}</TableHead>
-                      <TableHead>{t.common.order}</TableHead>
-                      <TableHead className="text-right">
-                        {t.common.actions}
-                      </TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {skills.map((skill) => (
-                      <TableRow key={skill.id}>
-                        <TableCell className="font-medium">
-                          {skill.name_en}
-                        </TableCell>
-                        <TableCell>{skill.name_fr}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">
-                            {getCategoryName(skill.category_id)}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{skill.order}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openEditSkill(skill)}
-                            >
-                              <Pencil className="h-4 w-4" />
-                              <span className="sr-only">{t.common.edit}</span>
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              onClick={() => openDeleteSkill(skill.id)}
-                            >
-                              <Trash2 className="h-4 w-4 text-destructive" />
-                              <span className="sr-only">{t.common.delete}</span>
-                            </Button>
-                          </div>
-                        </TableCell>
+            <div className="space-y-4">
+              <Card>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>
+                          {t.skills.skillName} ({t.common.english})
+                        </TableHead>
+                        <TableHead>
+                          {t.skills.skillName} ({t.common.french})
+                        </TableHead>
+                        <TableHead>{t.skills.category}</TableHead>
+                        <TableHead>{t.common.order}</TableHead>
+                        <TableHead className="text-right">
+                          {t.common.actions}
+                        </TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                    </TableHeader>
+                    <TableBody>
+                      {skills.map((skill) => (
+                        <TableRow key={skill.id}>
+                          <TableCell className="font-medium">
+                            {skill.name_en}
+                          </TableCell>
+                          <TableCell>{skill.name_fr}</TableCell>
+                          <TableCell>
+                            <Badge variant="secondary">
+                              {skill.category?.name_en || getCategoryName(skill.category_id)}
+                            </Badge>
+                          </TableCell>
+                          <TableCell>{skill.order}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openEditSkill(skill)}
+                              >
+                                <Pencil className="h-4 w-4" />
+                                <span className="sr-only">{t.common.edit}</span>
+                              </Button>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                onClick={() => openDeleteSkill(skill.id)}
+                              >
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                                <span className="sr-only">{t.common.delete}</span>
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </CardContent>
+              </Card>
+              <PaginationControls
+                page={skillsPage}
+                totalPages={skillsTotalPages}
+                totalItems={skillsTotalItems}
+                isLoading={isLoading}
+                onPageChange={updateSkillsPage}
+                labels={{
+                  previous: t.common.previousPage,
+                  next: t.common.nextPage,
+                  page: t.common.page,
+                  of: t.common.of,
+                }}
+              />
+            </div>
           )}
         </TabsContent>
 
@@ -662,55 +792,62 @@ export default function AdminSkillsPage() {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {categories.map((cat) => (
-                <Card key={cat.id}>
-                  <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                    <CardTitle className="text-sm font-medium">
-                      <div className="flex items-center gap-2">
-                        <Tag className="h-4 w-4 text-muted-foreground" />
-                        {cat.name_en}
+            <div className="space-y-4">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                {categories.map((cat) => (
+                  <Card key={cat.id}>
+                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                      <CardTitle className="text-sm font-medium">
+                        <div className="flex items-center gap-2">
+                          <Tag className="h-4 w-4 text-muted-foreground" />
+                          {cat.name_en}
+                        </div>
+                      </CardTitle>
+                      <div className="flex gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openEditCategory(cat)}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                          <span className="sr-only">{t.common.edit}</span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => openDeleteCategory(cat.id)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                          <span className="sr-only">{t.common.delete}</span>
+                        </Button>
                       </div>
-                    </CardTitle>
-                    <div className="flex gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => openEditCategory(cat)}
-                      >
-                        <Pencil className="h-3.5 w-3.5" />
-                        <span className="sr-only">{t.common.edit}</span>
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => openDeleteCategory(cat.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                        <span className="sr-only">{t.common.delete}</span>
-                      </Button>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground">
-                      {cat.name_fr}
-                    </p>
-                    <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
-                      <span>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-muted-foreground">
+                        {cat.name_fr}
+                      </p>
+                      <div className="mt-2 text-xs text-muted-foreground">
                         {t.common.order}: {cat.order}
-                      </span>
-                      <span>
-                        {
-                          skills.filter((s) => s.category_id === cat.id).length
-                        }{" "}
-                        {t.skills.title.toLowerCase()}
-                      </span>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                ))}
+              </div>
+              <PaginationControls
+                page={categoriesPage}
+                totalPages={categoriesTotalPages}
+                totalItems={categoriesTotalItems}
+                isLoading={isLoading}
+                onPageChange={updateCategoriesPage}
+                labels={{
+                  previous: t.common.previousPage,
+                  next: t.common.nextPage,
+                  page: t.common.page,
+                  of: t.common.of,
+                }}
+              />
             </div>
           )}
         </TabsContent>

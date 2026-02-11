@@ -5,8 +5,11 @@ import { useParams, usePathname, useRouter, useSearchParams } from "next/navigat
 import { Check, Trash2, X } from "lucide-react";
 import { getTranslations, type Locale } from "@/lib/i18n";
 import type { Testimonial } from "@/lib/types/database";
+import type { PaginatedResponse } from "@/lib/types/pagination";
 import { fetchJson, fetchMutation } from "@/lib/http/mutation";
+import { DEFAULT_PAGE_SIZE, parsePageQuery } from "@/lib/pagination";
 import { toast } from "sonner";
+import { PaginationControls } from "@/components/admin/pagination-controls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +32,7 @@ import {
 
 const FILTERS = ["all", "pending", "approved", "rejected"] as const;
 type Filter = (typeof FILTERS)[number];
+const PAGE_SIZE = DEFAULT_PAGE_SIZE;
 
 function resolveFilter(value: string | null): Filter {
   if (value && FILTERS.includes(value as Filter)) {
@@ -51,27 +55,40 @@ export default function AdminTestimonialsPage() {
   const locale = (params.locale as string) || "en";
   const t = getTranslations(locale as Locale);
   const filterFromUrl = resolveFilter(searchParams.get("filter"));
+  const pageFromUrl = parsePageQuery(searchParams.get("page"));
 
   const [items, setItems] = useState<Testimonial[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [filter, setFilter] = useState<Filter>(filterFromUrl);
+  const [page, setPage] = useState(pageFromUrl);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalItems, setTotalItems] = useState(0);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
-  const fetchData = useCallback(async (activeFilter: Filter) => {
+  const fetchData = useCallback(async (activeFilter: Filter, activePage: number) => {
     setIsLoading(true);
     try {
-      const endpoint =
-        activeFilter === "all"
-          ? "/api/testimonials"
-          : `/api/testimonials?status=${activeFilter}`;
-      const data = await fetchJson<Testimonial[]>(endpoint);
-      setItems(data);
+      const endpointParams = new URLSearchParams();
+      if (activeFilter !== "all") {
+        endpointParams.set("status", activeFilter);
+      }
+      endpointParams.set("page", String(activePage));
+      endpointParams.set("pageSize", String(PAGE_SIZE));
+
+      const data = await fetchJson<PaginatedResponse<Testimonial>>(
+        `/api/testimonials?${endpointParams.toString()}`
+      );
+      setItems(data.items);
+      setTotalPages(data.totalPages);
+      setTotalItems(data.total);
+      return data;
     } catch (error) {
       toast.error(
         error instanceof Error
           ? error.message
           : "Failed to load testimonials"
       );
+      return null;
     } finally {
       setIsLoading(false);
     }
@@ -82,13 +99,30 @@ export default function AdminTestimonialsPage() {
   }, [filterFromUrl]);
 
   useEffect(() => {
-    fetchData(filter);
-  }, [fetchData, filter]);
+    setPage(pageFromUrl);
+  }, [pageFromUrl]);
+
+  useEffect(() => {
+    fetchData(filter, page);
+  }, [fetchData, filter, page]);
 
   const updateFilter = (nextFilter: Filter) => {
     setFilter(nextFilter);
+    setPage(1);
     const params = new URLSearchParams(searchParams.toString());
     params.set("filter", nextFilter);
+    params.set("page", "1");
+    params.set("pageSize", String(PAGE_SIZE));
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+  };
+
+  const updatePage = (nextPage: number) => {
+    const boundedPage = Math.min(Math.max(1, nextPage), Math.max(1, totalPages));
+    setPage(boundedPage);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("filter", filter);
+    params.set("page", String(boundedPage));
+    params.set("pageSize", String(PAGE_SIZE));
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
   };
 
@@ -121,6 +155,13 @@ export default function AdminTestimonialsPage() {
     return { content: "", selectedLocale, fallbackNotice: null as string | null };
   };
 
+  const refreshAfterMutation = async () => {
+    const data = await fetchData(filter, page);
+    if (data && data.items.length === 0 && data.total > 0 && page > 1) {
+      updatePage(page - 1);
+    }
+  };
+
   const updateStatus = async (id: string, status: Testimonial["status"]) => {
     try {
       await fetchMutation(`/api/testimonials/${id}`, {
@@ -129,7 +170,7 @@ export default function AdminTestimonialsPage() {
         body: JSON.stringify({ status }),
       });
       toast.success(t.common.savedSuccessfully);
-      await fetchData(filter);
+      await refreshAfterMutation();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
     }
@@ -144,7 +185,7 @@ export default function AdminTestimonialsPage() {
       });
       toast.success(t.common.deletedSuccessfully);
       setDeleteId(null);
-      await fetchData(filter);
+      await refreshAfterMutation();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
     }
@@ -240,6 +281,19 @@ export default function AdminTestimonialsPage() {
               </Card>
             );
           })}
+          <PaginationControls
+            page={page}
+            totalPages={totalPages}
+            totalItems={totalItems}
+            isLoading={isLoading}
+            onPageChange={updatePage}
+            labels={{
+              previous: t.common.previousPage,
+              next: t.common.nextPage,
+              page: t.common.page,
+              of: t.common.of,
+            }}
+          />
         </div>
       )}
 

@@ -32,7 +32,7 @@ export function HobbiesSection({
               className="terminal-card card-3d-hover flex h-full flex-col overflow-hidden rounded-xl"
             >
               <div className="h-full p-4">
-                <div className="flex items-end gap-3">
+                <div className="flex items-center gap-3">
                   <span
                     className="inline-flex rounded-md border border-terminal-border p-2"
                     aria-hidden="true"

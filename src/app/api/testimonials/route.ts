@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { isAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
+import { createPaginatedResponse, readPaginationParams } from "@/lib/pagination";
 import { TESTIMONIAL_MAX_CHARS } from "@/lib/constants/testimonials";
 
 const MIN_FORM_FILL_MS = 3000;
@@ -62,6 +63,7 @@ function silentSpamSuccess() {
 
 export async function GET(request: NextRequest) {
   const status = request.nextUrl.searchParams.get("status");
+  const pagination = readPaginationParams(request.nextUrl.searchParams);
   const supabase = await createClient();
 
   const {
@@ -74,21 +76,37 @@ export async function GET(request: NextRequest) {
     const adminClient = createAdminClient();
     let query = adminClient
       .from("testimonials")
-      .select("*")
+      .select("*", pagination.enabled ? { count: "exact" } : undefined)
       .order("created_at", { ascending: false });
 
     if (status && ["pending", "approved", "rejected"].includes(status)) {
       query = query.eq("status", status);
     }
 
-    const { data, error } = await query;
+    if (pagination.enabled) {
+      query = query.range(pagination.from, pagination.to);
+    }
+
+    const { data, error, count } = await query;
     if (error) return apiError(error.message);
+
+    if (pagination.enabled) {
+      return apiSuccess(
+        createPaginatedResponse(
+          data ?? [],
+          pagination.page,
+          pagination.pageSize,
+          count ?? 0
+        )
+      );
+    }
+
     return apiSuccess(data ?? []);
   }
 
   let publicQuery = supabase
     .from("testimonials")
-    .select("*")
+    .select("*", pagination.enabled ? { count: "exact" } : undefined)
     .eq("status", "approved")
     .order("created_at", { ascending: false });
 
@@ -96,8 +114,24 @@ export async function GET(request: NextRequest) {
     publicQuery = publicQuery.eq("status", "approved");
   }
 
-  const { data, error } = await publicQuery;
+  if (pagination.enabled) {
+    publicQuery = publicQuery.range(pagination.from, pagination.to);
+  }
+
+  const { data, error, count } = await publicQuery;
   if (error) return apiError(error.message);
+
+  if (pagination.enabled) {
+    return apiSuccess(
+      createPaginatedResponse(
+        data ?? [],
+        pagination.page,
+        pagination.pageSize,
+        count ?? 0
+      )
+    );
+  }
+
   return apiSuccess(data ?? []);
 }
 
@@ -198,7 +232,8 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const { data, error } = await supabase
+  const adminClient = createAdminClient();
+  const { data, error } = await adminClient
     .from("testimonials")
     .insert({
       author_name: normalizedAuthorName,

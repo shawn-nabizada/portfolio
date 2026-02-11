@@ -416,7 +416,7 @@
 
 .terminal-input {
   font-family: var(--font-geist-mono);
-  font-size: 0.875rem;
+  font-size: 1rem;
   background: var(--card);
   border: 1px solid var(--terminal-border);
   color: var(--foreground);
@@ -438,7 +438,7 @@
 
 .terminal-textarea {
   font-family: var(--font-geist-mono);
-  font-size: 0.875rem;
+  font-size: 1rem;
   background: var(--card);
   border: 1px solid var(--terminal-border);
   color: var(--foreground);

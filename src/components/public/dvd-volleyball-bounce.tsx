@@ -55,6 +55,14 @@ function clamp(value: number, min: number, max: number): number {
   return Math.min(max, Math.max(min, value));
 }
 
+function getViewportSize(): { width: number; height: number } {
+  const doc = document.documentElement;
+  return {
+    width: doc.clientWidth || window.innerWidth,
+    height: doc.clientHeight || window.innerHeight,
+  };
+}
+
 function normalizeVelocity(
   vx: number,
   vy: number,
@@ -172,8 +180,9 @@ export function DvdVolleyballBounce({
     const trailContext = trailCanvas?.getContext("2d") || null;
 
     let palette = getPalette();
-    let viewportWidth = window.innerWidth;
-    let viewportHeight = window.innerHeight;
+    const initialViewport = getViewportSize();
+    let viewportWidth = initialViewport.width;
+    let viewportHeight = initialViewport.height;
     let maxX = Math.max(0, viewportWidth - clampedIconSize);
     let maxY = Math.max(0, viewportHeight - clampedIconSize);
     const radius = clampedIconSize / 2;
@@ -460,18 +469,31 @@ export function DvdVolleyballBounce({
     };
 
     const handleResize = () => {
-      const previousMaxX = maxX;
-      const previousMaxY = maxY;
-      viewportWidth = window.innerWidth;
-      viewportHeight = window.innerHeight;
+      const nextViewport = getViewportSize();
+      const isSmallViewport = nextViewport.width <= 1024;
+      const heightDelta = Math.abs(nextViewport.height - viewportHeight);
+      const widthDelta = Math.abs(nextViewport.width - viewportWidth);
+      const widthChanged = widthDelta > 1;
+      const heightChanged = heightDelta > 1;
+
+      if (!widthChanged && !heightChanged) {
+        return;
+      }
+
+      // Mobile browser UI (address bar/toolbar) often changes only height while scrolling.
+      // Keep physics stable by ignoring height-only resize events on small viewports.
+      if (isSmallViewport && !widthChanged) {
+        return;
+      }
+
+      viewportWidth = nextViewport.width;
+      viewportHeight = nextViewport.height;
       maxX = Math.max(0, viewportWidth - clampedIconSize);
       maxY = Math.max(0, viewportHeight - clampedIconSize);
 
       for (const body of bodies) {
-        const ratioX = previousMaxX > 0 ? body.x / previousMaxX : Math.random();
-        const ratioY = previousMaxY > 0 ? body.y / previousMaxY : Math.random();
-        body.x = Math.min(maxX, Math.max(0, maxX * ratioX));
-        body.y = Math.min(maxY, Math.max(0, maxY * ratioY));
+        body.x = Math.min(maxX, Math.max(0, body.x));
+        body.y = Math.min(maxY, Math.max(0, body.y));
       }
 
       syncTrailCanvas();

@@ -884,6 +884,14 @@ function buildProjectItems(data: PortfolioData, locale: Locale): SectionItem[] {
   return data.projects.map((project) => {
     const title = project.title;
     const description = project.description || (locale === "fr" ? "Aucune description." : "No description.");
+    const range = project.start_date
+      ? formatYearRange(project.start_date, project.end_date, locale)
+      : null;
+    const bulletLabel = locale === "fr" ? "Points clés" : "Highlights";
+    const bulletLines =
+      project.bullets.length > 0
+        ? project.bullets.map((bullet) => `- ${bullet}`)
+        : [locale === "fr" ? "- N/A" : "- N/A"];
 
     return {
       key: slugify(title),
@@ -896,12 +904,16 @@ function buildProjectItems(data: PortfolioData, locale: Locale): SectionItem[] {
         divider,
         description,
         "",
+        `${bulletLabel}:`,
+        ...bulletLines,
+        "",
+        range ? `${locale === "fr" ? "Période" : "Period"}: ${range}` : "",
         `${locale === "fr" ? "Tech" : "Tech"}: ${
           project.skills.length > 0 ? project.skills.map((skill) => skill.name).join(", ") : locale === "fr" ? "N/A" : "N/A"
         }`,
         `${locale === "fr" ? "URL" : "URL"}: ${project.project_url || "N/A"}`,
         `${locale === "fr" ? "Git" : "Git"}: ${project.github_url || "N/A"}`,
-      ],
+      ].filter(Boolean),
     };
   });
 }
@@ -934,21 +946,19 @@ function buildExperienceItems(data: PortfolioData, locale: Locale): SectionItem[
 function buildEducationItems(data: PortfolioData, locale: Locale): SectionItem[] {
   return data.education.map((item, index) => {
     const degree = locale === "fr" ? item.degree_fr : item.degree_en;
-    const field = locale === "fr" ? item.field_fr : item.field_en;
     const range = formatYearRange(item.start_date, item.end_date, locale);
     const rowIndex = String(index).padStart(2, "0");
 
     return {
       key: rowIndex,
       label: `${degree} @ ${item.institution}`,
-      aliases: [rowIndex, degree, field, item.institution, slugify(degree), slugify(item.institution)],
+      aliases: [rowIndex, degree, item.institution, slugify(degree), slugify(item.institution)],
       brief: `[${rowIndex}] ${truncate(degree, 22).padEnd(24)} @ ${truncate(item.institution, 16).padEnd(18)} ${range}`,
       detail: [
         divider,
         degree,
         divider,
         `${locale === "fr" ? "Établissement" : "Institution"}: ${item.institution}`,
-        `${locale === "fr" ? "Domaine" : "Field"}: ${field}`,
         `${locale === "fr" ? "Période" : "Period"}: ${range}`,
         item.location ? `${locale === "fr" ? "Lieu" : "Location"}: ${item.location}` : "",
       ].filter(Boolean),

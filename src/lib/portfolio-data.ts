@@ -28,9 +28,12 @@ export interface LocalizedProject {
   id: string;
   title: string;
   description: string | null;
+  bullets: string[];
   image_url: string | null;
   project_url: string | null;
   github_url: string | null;
+  start_date: string | null;
+  end_date: string | null;
   featured: boolean;
   order: number;
   skills: Array<{ id: string; name: string }>;
@@ -72,6 +75,14 @@ function localizeText(
 
   const fallback = row[`${keyBase}_en`];
   return typeof fallback === "string" ? fallback : null;
+}
+
+function normalizeTextArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  return value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim())
+    .filter((item) => item.length > 0);
 }
 
 function sleep(ms: number) {
@@ -212,10 +223,18 @@ async function fetchPortfolioData(locale: Locale): Promise<PortfolioData> {
         })
         .filter((value): value is { id: string; name: string } => Boolean(value));
 
+      const localizedBullets = normalizeTextArray(
+        project[locale === "fr" ? "project_bullets_fr" : "project_bullets_en"]
+      );
+      const fallbackBullets = normalizeTextArray(
+        project[locale === "fr" ? "project_bullets_en" : "project_bullets_fr"]
+      );
+
       return {
         id: String(project.id),
         title: localizeText(project, "title", locale) || "",
         description: localizeText(project, "description", locale),
+        bullets: localizedBullets.length > 0 ? localizedBullets : fallbackBullets,
         image_url:
           typeof project.image_url === "string" ? (project.image_url as string) : null,
         project_url:
@@ -224,6 +243,12 @@ async function fetchPortfolioData(locale: Locale): Promise<PortfolioData> {
             : null,
         github_url:
           typeof project.github_url === "string" ? (project.github_url as string) : null,
+        start_date:
+          typeof project.start_date === "string"
+            ? (project.start_date as string)
+            : null,
+        end_date:
+          typeof project.end_date === "string" ? (project.end_date as string) : null,
         featured: Boolean(project.featured),
         order: Number(project.order ?? 0),
         skills: localizedSkills,

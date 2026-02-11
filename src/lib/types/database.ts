@@ -35,9 +35,13 @@ export interface Project {
   title_fr: string;
   description_en: string | null;
   description_fr: string | null;
+  project_bullets_en: string[];
+  project_bullets_fr: string[];
   image_url: string | null;
   project_url: string | null;
   github_url: string | null;
+  start_date: string | null;
+  end_date: string | null;
   featured: boolean;
   order: number;
   created_at: string;
@@ -68,8 +72,6 @@ export interface Education {
   institution: string;
   degree_en: string;
   degree_fr: string;
-  field_en: string;
-  field_fr: string;
   location: string | null;
   start_date: string;
   end_date: string | null;

@@ -45,8 +45,6 @@ interface EducationFormData {
   institution: string;
   degree_en: string;
   degree_fr: string;
-  field_en: string;
-  field_fr: string;
   location: string;
   start_date: string;
   end_date: string;
@@ -73,8 +71,6 @@ function EducationDialog({
     institution: "",
     degree_en: "",
     degree_fr: "",
-    field_en: "",
-    field_fr: "",
     location: "",
     start_date: "",
     end_date: "",
@@ -89,8 +85,6 @@ function EducationDialog({
         institution: education.institution,
         degree_en: education.degree_en,
         degree_fr: education.degree_fr,
-        field_en: education.field_en,
-        field_fr: education.field_fr,
         location: education.location || "",
         start_date: toMonthInputValue(education.start_date),
         end_date: toMonthInputValue(education.end_date),
@@ -102,8 +96,6 @@ function EducationDialog({
         institution: "",
         degree_en: "",
         degree_fr: "",
-        field_en: "",
-        field_fr: "",
         location: "",
         start_date: "",
         end_date: "",
@@ -184,36 +176,6 @@ function EducationDialog({
               value={form.degree_fr}
               onChange={(e) =>
                 setForm((f) => ({ ...f, degree_fr: e.target.value }))
-              }
-              required
-            />
-          </div>
-
-          {/* Field EN */}
-          <div className="space-y-2">
-            <Label htmlFor="edu-field-en">
-              {t.education.field} ({t.common.english})
-            </Label>
-            <Input
-              id="edu-field-en"
-              value={form.field_en}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, field_en: e.target.value }))
-              }
-              required
-            />
-          </div>
-
-          {/* Field FR */}
-          <div className="space-y-2">
-            <Label htmlFor="edu-field-fr">
-              {t.education.field} ({t.common.french})
-            </Label>
-            <Input
-              id="edu-field-fr"
-              value={form.field_fr}
-              onChange={(e) =>
-                setForm((f) => ({ ...f, field_fr: e.target.value }))
               }
               required
             />
@@ -424,8 +386,6 @@ export default function AdminEducationPage() {
       institution: data.institution,
       degree_en: data.degree_en,
       degree_fr: data.degree_fr,
-      field_en: data.field_en,
-      field_fr: data.field_fr,
       location: data.location,
       start_date: toIsoMonthDate(data.start_date),
       end_date: data.is_current ? null : toIsoMonthDate(data.end_date) || null,
@@ -530,7 +490,7 @@ export default function AdminEducationPage() {
                     </div>
                   </CardTitle>
                   <p className="mt-1 text-sm font-medium text-muted-foreground">
-                    {edu.institution} &mdash; {edu.field_en}
+                    {edu.institution}
                   </p>
                 </div>
                 <div className="flex gap-1">

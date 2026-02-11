@@ -2,13 +2,42 @@
 
 import { Github, ExternalLink } from "lucide-react";
 import { AnimatedSection } from "@/components/public/animated-section";
-import type { Translations } from "@/lib/i18n";
+import type { Locale, Translations } from "@/lib/i18n";
 import type { LocalizedProject } from "@/lib/portfolio-data";
 
+function formatMonthYear(value: string, locale: Locale): string {
+  if (!value) return "";
+  const normalized = value.length === 7 ? `${value}-01` : value;
+  const match = normalized.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) {
+    return value;
+  }
+
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  if (!Number.isFinite(year) || !Number.isFinite(month) || !Number.isFinite(day)) {
+    return value;
+  }
+
+  const parsed = new Date(Date.UTC(year, month - 1, day));
+  if (Number.isNaN(parsed.getTime())) {
+    return value;
+  }
+
+  return parsed.toLocaleDateString(locale === "fr" ? "fr-CA" : "en-US", {
+    year: "numeric",
+    month: "short",
+    timeZone: "UTC",
+  });
+}
+
 export function ProjectsSection({
+  locale,
   projects,
   t,
 }: {
+  locale: Locale;
   projects: LocalizedProject[];
   t: Pick<Translations, "projects">;
 }) {
@@ -46,10 +75,27 @@ export function ProjectsSection({
               <div className="flex flex-1 flex-col space-y-4 p-4">
                 <div>
                   <h3 className="font-mono text-lg font-semibold text-foreground">{project.title}</h3>
+                  {project.start_date ? (
+                    <p className="mt-1 font-mono text-xs text-terminal-dim">
+                      {formatMonthYear(project.start_date, locale)} -{" "}
+                      {project.end_date
+                        ? formatMonthYear(project.end_date, locale)
+                        : t.projects.present}
+                    </p>
+                  ) : null}
                   {project.description ? (
                     <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
                       {project.description}
                     </p>
+                  ) : null}
+                  {project.bullets.length > 0 ? (
+                    <ul className="mt-2 space-y-1 pl-4 text-sm leading-relaxed text-muted-foreground">
+                      {project.bullets.map((bullet, index) => (
+                        <li key={`${project.id}-bullet-${index}`} className="list-disc">
+                          {bullet}
+                        </li>
+                      ))}
+                    </ul>
                   ) : null}
                 </div>
 

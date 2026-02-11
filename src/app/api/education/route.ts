@@ -36,17 +36,15 @@ export async function POST(request: NextRequest) {
     institution,
     degree_en,
     degree_fr,
-    field_en,
-    field_fr,
     location,
     start_date,
     end_date,
     order,
   } = body;
 
-  if (!institution || !degree_en || !degree_fr || !field_en || !field_fr || !start_date) {
+  if (!institution || !degree_en || !degree_fr || !start_date) {
     return apiError(
-      "institution, degree_en, degree_fr, field_en, field_fr, and start_date are required",
+      "institution, degree_en, degree_fr, and start_date are required",
       400
     );
   }
@@ -59,8 +57,6 @@ export async function POST(request: NextRequest) {
       institution,
       degree_en,
       degree_fr,
-      field_en,
-      field_fr,
       location: location || null,
       start_date: normalizeMonthDate(start_date),
       end_date: normalizeMonthDate(end_date),

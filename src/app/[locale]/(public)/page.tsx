@@ -170,7 +170,7 @@ export default async function PublicPage({
       />
       <SkillsSection categories={data.skillsByCategory} t={{ skills: t.skills }} />
       <div className="section-divider" aria-hidden="true" />
-      <ProjectsSection projects={data.projects} t={{ projects: t.projects }} />
+      <ProjectsSection locale={typedLocale} projects={data.projects} t={{ projects: t.projects }} />
       <div className="section-divider" aria-hidden="true" />
       <ExperienceSection
         locale={typedLocale}

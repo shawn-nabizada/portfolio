@@ -62,9 +62,9 @@ export function EducationSection({
               <p className="font-mono text-sm text-terminal-dim">
                 @{item.institution}
               </p>
-              <p className="text-base text-muted-foreground">
-                {locale === "fr" ? item.field_fr : item.field_en}
-              </p>
+              {item.location ? (
+                <p className="text-sm text-muted-foreground">{item.location}</p>
+              ) : null}
               <p className="mt-1 font-mono text-xs text-terminal-dim">
                 {formatMonthYear(item.start_date, locale)} -{" "}
                 {item.end_date ? formatMonthYear(item.end_date, locale) : t.education.present}

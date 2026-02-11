@@ -9,6 +9,7 @@ import {
   Star,
   ExternalLink,
   Github,
+  Calendar,
   Loader2,
 } from "lucide-react";
 import { getTranslations, type Locale } from "@/lib/i18n";
@@ -38,6 +39,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { MonthYearField } from "@/components/admin/month-year-field";
 import { fetchJson, fetchMutation } from "@/lib/http/mutation";
 import { toast } from "sonner";
 
@@ -47,12 +49,47 @@ interface ProjectFormData {
   title_fr: string;
   description_en: string;
   description_fr: string;
+  project_bullets_en: string[];
+  project_bullets_fr: string[];
   image_url: string;
   project_url: string;
   github_url: string;
+  start_date: string;
+  end_date: string;
+  is_current: boolean;
   featured: boolean;
   order: number;
   skill_ids: string[];
+}
+
+function formatDate(dateStr: string) {
+  if (!dateStr) return "";
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString(undefined, { year: "numeric", month: "short" });
+}
+
+function toMonthInputValue(value: string | null | undefined) {
+  if (!value) return "";
+  return value.slice(0, 7);
+}
+
+function toIsoMonthDate(value: string) {
+  if (!value) return "";
+  return /^\d{4}-\d{2}$/.test(value) ? `${value}-01` : value;
+}
+
+function normalizeBulletInput(value: unknown): string[] {
+  if (!Array.isArray(value)) return [""];
+
+  const normalized = value
+    .filter((item): item is string => typeof item === "string")
+    .map((item) => item.trim());
+
+  return normalized.length > 0 ? normalized : [""];
+}
+
+function hasAtLeastOneBullet(value: string[]): boolean {
+  return value.some((item) => item.trim().length > 0);
 }
 
 function ProjectDialog({
@@ -61,6 +98,7 @@ function ProjectDialog({
   project,
   allSkills,
   onSave,
+  locale,
   t,
 }: {
   open: boolean;
@@ -68,6 +106,7 @@ function ProjectDialog({
   project: Project | null;
   allSkills: Skill[];
   onSave: (data: ProjectFormData) => Promise<void>;
+  locale: Locale;
   t: ReturnType<typeof getTranslations>;
 }) {
   const [form, setForm] = useState<ProjectFormData>({
@@ -75,9 +114,14 @@ function ProjectDialog({
     title_fr: "",
     description_en: "",
     description_fr: "",
+    project_bullets_en: [""],
+    project_bullets_fr: [""],
     image_url: "",
     project_url: "",
     github_url: "",
+    start_date: "",
+    end_date: "",
+    is_current: false,
     featured: false,
     order: 0,
     skill_ids: [],
@@ -91,9 +135,14 @@ function ProjectDialog({
         title_fr: project.title_fr,
         description_en: project.description_en || "",
         description_fr: project.description_fr || "",
+        project_bullets_en: normalizeBulletInput(project.project_bullets_en),
+        project_bullets_fr: normalizeBulletInput(project.project_bullets_fr),
         image_url: project.image_url || "",
         project_url: project.project_url || "",
         github_url: project.github_url || "",
+        start_date: toMonthInputValue(project.start_date),
+        end_date: toMonthInputValue(project.end_date),
+        is_current: Boolean(project.start_date && !project.end_date),
         featured: project.featured,
         order: project.order,
         skill_ids: project.skills?.map((s) => s.id) || [],
@@ -104,9 +153,14 @@ function ProjectDialog({
         title_fr: "",
         description_en: "",
         description_fr: "",
+        project_bullets_en: [""],
+        project_bullets_fr: [""],
         image_url: "",
         project_url: "",
         github_url: "",
+        start_date: "",
+        end_date: "",
+        is_current: false,
         featured: false,
         order: 0,
         skill_ids: [],
@@ -116,6 +170,22 @@ function ProjectDialog({
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.start_date) {
+      toast.error(
+        locale === "fr"
+          ? "La date de début est requise."
+          : "Start date is required."
+      );
+      return;
+    }
+    if (
+      !hasAtLeastOneBullet(form.project_bullets_en) ||
+      !hasAtLeastOneBullet(form.project_bullets_fr)
+    ) {
+      toast.error(t.projects.bulletsRequired);
+      return;
+    }
+
     setSaving(true);
     try {
       await onSave(form);
@@ -134,6 +204,32 @@ function ProjectDialog({
         ? f.skill_ids.filter((id) => id !== skillId)
         : [...f.skill_ids, skillId],
     }));
+  };
+
+  const updateBullet = (
+    key: "project_bullets_en" | "project_bullets_fr",
+    index: number,
+    value: string
+  ) => {
+    setForm((f) => {
+      const next = [...f[key]];
+      next[index] = value;
+      return { ...f, [key]: next };
+    });
+  };
+
+  const addBullet = (key: "project_bullets_en" | "project_bullets_fr") => {
+    setForm((f) => ({ ...f, [key]: [...f[key], ""] }));
+  };
+
+  const removeBullet = (
+    key: "project_bullets_en" | "project_bullets_fr",
+    index: number
+  ) => {
+    setForm((f) => {
+      if (f[key].length <= 1) return f;
+      return { ...f, [key]: f[key].filter((_, i) => i !== index) };
+    });
   };
 
   return (
@@ -205,6 +301,64 @@ function ProjectDialog({
             />
           </div>
 
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>{t.projects.bulletPoints} ({t.common.english})</Label>
+              <Button type="button" variant="outline" size="sm" onClick={() => addBullet("project_bullets_en")}>
+                {t.projects.addBullet}
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {form.project_bullets_en.map((bullet, index) => (
+                <div key={`bullet-en-${index}`} className="flex items-center gap-2">
+                  <Input
+                    value={bullet}
+                    onChange={(e) => updateBullet("project_bullets_en", index, e.target.value)}
+                    placeholder={t.projects.bulletPlaceholder}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => removeBullet("project_bullets_en", index)}
+                    disabled={form.project_bullets_en.length <= 1}
+                  >
+                    {t.common.delete}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <div className="flex items-center justify-between">
+              <Label>{t.projects.bulletPoints} ({t.common.french})</Label>
+              <Button type="button" variant="outline" size="sm" onClick={() => addBullet("project_bullets_fr")}>
+                {t.projects.addBullet}
+              </Button>
+            </div>
+            <div className="space-y-2">
+              {form.project_bullets_fr.map((bullet, index) => (
+                <div key={`bullet-fr-${index}`} className="flex items-center gap-2">
+                  <Input
+                    value={bullet}
+                    onChange={(e) => updateBullet("project_bullets_fr", index, e.target.value)}
+                    placeholder={t.projects.bulletPlaceholder}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => removeBullet("project_bullets_fr", index)}
+                    disabled={form.project_bullets_fr.length <= 1}
+                  >
+                    {t.common.delete}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Image URL */}
           <div className="space-y-2">
             <Label htmlFor="proj-image">{t.projects.imageUrl}</Label>
@@ -246,6 +400,45 @@ function ProjectDialog({
               placeholder="https://github.com/..."
             />
           </div>
+
+          <MonthYearField
+            id="proj-start-date"
+            label={t.projects.startDate}
+            value={form.start_date}
+            onChange={(value) => setForm((f) => ({ ...f, start_date: value }))}
+            locale={locale}
+            required
+          />
+
+          {/* Current Project */}
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="proj-current"
+              checked={form.is_current}
+              onCheckedChange={(checked) =>
+                setForm((f) => ({
+                  ...f,
+                  is_current: checked === true,
+                  end_date: checked === true ? "" : f.end_date,
+                }))
+              }
+            />
+            <Label htmlFor="proj-current" className="cursor-pointer">
+              {t.projects.currentProject}
+            </Label>
+          </div>
+
+          {/* End Date */}
+          {!form.is_current && (
+            <MonthYearField
+              id="proj-end-date"
+              label={t.projects.endDate}
+              value={form.end_date}
+              onChange={(value) => setForm((f) => ({ ...f, end_date: value }))}
+              locale={locale}
+              allowClear
+            />
+          )}
 
           {/* Order */}
           <div className="space-y-2">
@@ -313,7 +506,15 @@ function ProjectDialog({
             >
               {t.common.cancel}
             </Button>
-            <Button type="submit" disabled={saving}>
+            <Button
+              type="submit"
+              disabled={
+                saving ||
+                !form.start_date ||
+                !hasAtLeastOneBullet(form.project_bullets_en) ||
+                !hasAtLeastOneBullet(form.project_bullets_fr)
+              }
+            >
               {saving ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -426,18 +627,39 @@ export default function AdminProjectsPage() {
 
   // ── Project CRUD ────────────────────────────────────────────────────
   const handleSaveProject = async (data: ProjectFormData) => {
+    const payload = {
+      title_en: data.title_en,
+      title_fr: data.title_fr,
+      description_en: data.description_en,
+      description_fr: data.description_fr,
+      project_bullets_en: data.project_bullets_en
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0),
+      project_bullets_fr: data.project_bullets_fr
+        .map((item) => item.trim())
+        .filter((item) => item.length > 0),
+      image_url: data.image_url,
+      project_url: data.project_url,
+      github_url: data.github_url,
+      start_date: toIsoMonthDate(data.start_date),
+      end_date: data.is_current ? null : toIsoMonthDate(data.end_date) || null,
+      featured: data.featured,
+      order: data.order,
+      skill_ids: data.skill_ids,
+    };
+
     try {
       if (editingProject) {
         await fetchMutation(`/api/projects/${editingProject.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          body: JSON.stringify(payload),
         });
       } else {
         await fetchMutation("/api/projects", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
+          body: JSON.stringify(payload),
         });
       }
       toast.success(t.common.savedSuccessfully);
@@ -571,6 +793,22 @@ export default function AdminProjectsPage() {
                   </p>
                 )}
 
+                {project.project_bullets_en.length > 0 ? (
+                  <ul className="list-disc space-y-1 pl-4 text-sm text-muted-foreground">
+                    {project.project_bullets_en.slice(0, 3).map((bullet, index) => (
+                      <li key={`${project.id}-admin-bullet-${index}`}>{bullet}</li>
+                    ))}
+                  </ul>
+                ) : null}
+
+                {project.start_date ? (
+                  <p className="inline-flex items-center text-xs text-muted-foreground">
+                    <Calendar className="mr-1 h-3.5 w-3.5" />
+                    {formatDate(project.start_date)} &ndash;{" "}
+                    {project.end_date ? formatDate(project.end_date) : t.projects.present}
+                  </p>
+                ) : null}
+
                 {/* Linked skills */}
                 {project.skills && project.skills.length > 0 && (
                   <div className="flex flex-wrap gap-1">
@@ -625,6 +863,7 @@ export default function AdminProjectsPage() {
         project={editingProject}
         allSkills={allSkills}
         onSave={handleSaveProject}
+        locale={locale as Locale}
         t={t}
       />
 

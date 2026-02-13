@@ -32,6 +32,10 @@ export const en = {
     welcomeBack: "Welcome back",
     enterCredentials: "Enter your credentials to access the admin panel",
     viewPortfolio: "View Portfolio",
+    forbiddenTitle: "Access denied",
+    forbiddenDescription:
+      "You do not have access to this admin area.",
+    forbiddenBackToPublic: "Back to public page",
   },
   common: {
     save: "Save",

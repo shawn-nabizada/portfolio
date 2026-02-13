@@ -68,6 +68,7 @@ Required GitHub Actions secrets:
 - `NEXT_PUBLIC_SUPABASE_URL`
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `NEXT_PUBLIC_SITE_URL`
+- `ADMIN_LOGIN_COMMAND`
 
 Required Vercel production environment variables:
 
@@ -77,6 +78,7 @@ Required Vercel production environment variables:
 - `NEXT_PUBLIC_SITE_URL`
 - `NEXT_PUBLIC_DEFAULT_LOCALE`
 - `REVALIDATION_SECRET`
+- `ADMIN_LOGIN_COMMAND`
 
 Setup details and operational runbook are in `docs/DeploymentManual.md`.
 

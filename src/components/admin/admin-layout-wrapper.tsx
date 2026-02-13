@@ -21,23 +21,23 @@ interface AdminTranslations {
 interface AdminLayoutWrapperProps {
   locale: string;
   translations: AdminTranslations;
+  renderWithoutShell?: boolean;
   children: React.ReactNode;
 }
 
 export function AdminLayoutWrapper({
   locale,
   translations,
+  renderWithoutShell = false,
   children,
 }: AdminLayoutWrapperProps) {
   const pathname = usePathname();
-  const isLoginPage = pathname === `/${locale}/admin/login`;
+  const isForbiddenPage = pathname === `/${locale}/admin/forbidden`;
 
-  // Login page renders without the admin shell
-  if (isLoginPage) {
+  if (renderWithoutShell || isForbiddenPage) {
     return <>{children}</>;
   }
 
-  // All other admin pages get the sidebar + header shell
   return (
     <AdminShell locale={locale} translations={translations}>
       {children}

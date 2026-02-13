@@ -71,7 +71,7 @@ export function AdminSidebar({
   const handleLogout = async () => {
     const supabase = createClient();
     await supabase.auth.signOut();
-    router.push(`/${locale}/admin/login`);
+    router.push(`/${locale}`);
     router.refresh();
   };
 

@@ -40,6 +40,7 @@ interface CommandContext {
   data: PortfolioData;
   locale: Locale;
   isCompact: boolean;
+  adminLoginCommand: string;
 }
 
 interface SectionItem {
@@ -152,7 +153,7 @@ export interface CommandArgumentSuggestion {
   description: string;
 }
 
-const TERMINAL_COMMANDS: TerminalCommandDescriptor[] = [
+const TERMINAL_BASE_COMMANDS: TerminalCommandDescriptor[] = [
   {
     command: "help",
     usage: "help",
@@ -237,16 +238,22 @@ const TERMINAL_COMMANDS: TerminalCommandDescriptor[] = [
       fr: "Fermer le terminal",
     },
   },
-  {
-    command: "login",
-    usage: "login",
-    hidden: true,
-    description: {
-      en: "Start admin login",
-      fr: "Démarrer la connexion admin",
-    },
-  },
 ];
+
+function createTerminalCommands(adminLoginCommand: string): TerminalCommandDescriptor[] {
+  return [
+    ...TERMINAL_BASE_COMMANDS,
+    {
+      command: adminLoginCommand,
+      usage: adminLoginCommand,
+      hidden: true,
+      description: {
+        en: "Start admin login",
+        fr: "Démarrer la connexion admin",
+      },
+    },
+  ];
+}
 
 const HELP_COMMAND_ENTRIES: HelpEntry[] = [
   { command: "help", en: "Show this help", fr: "Afficher cette aide" },
@@ -275,13 +282,18 @@ export function getShellPrompt(cwd: SectionKey | null): string {
   return cwd ? `visitor@portfolio:~/${cwd}$` : "visitor@portfolio:~$";
 }
 
-export function getDiscoverableCommands(locale: Locale): DiscoverableCommand[] {
-  return TERMINAL_COMMANDS.filter((command) => !command.hidden).map((command) => ({
-    command: command.command,
-    usage: command.usage,
-    insertValue: command.insertValue ?? command.command,
-    description: locale === "fr" ? command.description.fr : command.description.en,
-  }));
+export function getDiscoverableCommands(
+  locale: Locale,
+  adminLoginCommand: string
+): DiscoverableCommand[] {
+  return createTerminalCommands(adminLoginCommand)
+    .filter((command) => !command.hidden)
+    .map((command) => ({
+      command: command.command,
+      usage: command.usage,
+      insertValue: command.insertValue ?? command.command,
+      description: locale === "fr" ? command.description.fr : command.description.en,
+    }));
 }
 
 export function getCommandArgumentSuggestions({
@@ -432,6 +444,21 @@ export function executeCommand(input: string, context: CommandContext): CommandR
 
   const [command, ...args] = trimmed.split(/\s+/);
   const lowerCommand = normalize(command);
+  const normalizedLoginCommand = normalize(context.adminLoginCommand);
+
+  if (lowerCommand === normalizedLoginCommand) {
+    return {
+      lines: [
+        line(
+          context.locale === "fr"
+            ? "Authentification administrateur..."
+            : "Starting admin login...",
+          "system"
+        ),
+      ],
+      startPrompt: "login",
+    };
+  }
 
   switch (lowerCommand) {
     case "help":
@@ -471,18 +498,6 @@ export function executeCommand(input: string, context: CommandContext): CommandR
     case "labyrinth":
     case "lab":
       return labyrinthResult(args, context.locale);
-    case "login":
-      return {
-        lines: [
-          line(
-            context.locale === "fr"
-              ? "Authentification administrateur..."
-              : "Starting admin login...",
-            "system"
-          ),
-        ],
-        startPrompt: "login",
-      };
     case "clear":
       return { lines: [], clear: true };
     case "quit":

@@ -34,6 +34,10 @@ export const fr: Translations = {
     welcomeBack: "Bon retour",
     enterCredentials: "Entrez vos identifiants pour accéder au panneau d'administration",
     viewPortfolio: "Voir le portfolio",
+    forbiddenTitle: "Accès refusé",
+    forbiddenDescription:
+      "Vous n'avez pas accès à cette zone d'administration.",
+    forbiddenBackToPublic: "Retour à la page publique",
   },
   common: {
     save: "Enregistrer",

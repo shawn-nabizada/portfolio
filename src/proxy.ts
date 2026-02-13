@@ -8,6 +8,8 @@ import {
 } from "@/lib/i18n/config";
 import { isAdminUser } from "@/lib/auth/admin";
 
+const ADMIN_FORBIDDEN_REQUEST_HEADER = "x-admin-forbidden-page";
+
 function getLocaleFromRequest(request: NextRequest): Locale {
   const cookieLocale = request.cookies.get(LOCALE_COOKIE)?.value;
   if (cookieLocale && locales.includes(cookieLocale as Locale)) {
@@ -50,21 +52,33 @@ export async function proxy(request: NextRequest) {
 
   const isAdminRoute = pathname.startsWith(`/${pathnameLocale}/admin`);
   const isLoginRoute = pathname === `/${pathnameLocale}/admin/login`;
+  const isForbiddenRoute = pathname === `/${pathnameLocale}/admin/forbidden`;
 
-  if (isAdminRoute && !isLoginRoute && !user) {
-    const loginUrl = new URL(`/${pathnameLocale}/admin/login`, request.url);
-    return NextResponse.redirect(loginUrl);
-  }
+  if (isAdminRoute) {
+    const isAdmin = isAdminUser(user);
 
-  if (isAdminRoute && !isLoginRoute && user && !isAdminUser(user)) {
-    const loginUrl = new URL(`/${pathnameLocale}/admin/login`, request.url);
-    loginUrl.searchParams.set("error", "forbidden");
-    return NextResponse.redirect(loginUrl);
-  }
+    if (isLoginRoute && isAdmin) {
+      const dashboardUrl = new URL(`/${pathnameLocale}/admin/dashboard`, request.url);
+      return NextResponse.redirect(dashboardUrl);
+    }
 
-  if (isLoginRoute && user && isAdminUser(user)) {
-    const dashboardUrl = new URL(`/${pathnameLocale}/admin/dashboard`, request.url);
-    return NextResponse.redirect(dashboardUrl);
+    if (isForbiddenRoute && isAdmin) {
+      const dashboardUrl = new URL(`/${pathnameLocale}/admin/dashboard`, request.url);
+      return NextResponse.redirect(dashboardUrl);
+    }
+
+    if (!isForbiddenRoute && !isAdmin) {
+      const forbiddenUrl = new URL(`/${pathnameLocale}/admin/forbidden`, request.url);
+      const requestHeaders = new Headers(request.headers);
+      requestHeaders.set(ADMIN_FORBIDDEN_REQUEST_HEADER, "1");
+
+      return NextResponse.rewrite(forbiddenUrl, {
+        status: 403,
+        request: {
+          headers: requestHeaders,
+        },
+      });
+    }
   }
 
   return supabaseResponse;

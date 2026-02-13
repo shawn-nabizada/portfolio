@@ -9,10 +9,12 @@ import { useTerminal } from "./use-terminal";
 export function TerminalBody({
   locale,
   data,
+  adminLoginCommand,
   onRequestClose,
 }: {
   locale: Locale;
   data: PortfolioData;
+  adminLoginCommand: string;
   onRequestClose: () => void;
 }) {
   const outputRef = useRef<HTMLDivElement | null>(null);
@@ -41,6 +43,7 @@ export function TerminalBody({
   } = useTerminal({
     locale,
     data,
+    adminLoginCommand,
     onRequestClose,
   });
   const [isComposing, setIsComposing] = useState(false);

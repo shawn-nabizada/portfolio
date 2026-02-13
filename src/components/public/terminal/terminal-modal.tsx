@@ -21,11 +21,13 @@ export function TerminalModal({
   open,
   locale,
   data,
+  adminLoginCommand,
   onClose,
 }: {
   open: boolean;
   locale: Locale;
   data: PortfolioData;
+  adminLoginCommand: string;
   onClose: () => void;
 }) {
   const [shouldRender, setShouldRender] = useState(open);
@@ -225,7 +227,12 @@ export function TerminalModal({
           </button>
         </div>
 
-        <TerminalBody locale={locale} data={data} onRequestClose={onClose} />
+        <TerminalBody
+          locale={locale}
+          data={data}
+          adminLoginCommand={adminLoginCommand}
+          onRequestClose={onClose}
+        />
       </div>
     </div>
   );

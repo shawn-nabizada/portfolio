@@ -68,6 +68,7 @@ Expected migration set includes:
    - `NEXT_PUBLIC_SITE_URL` (for example `https://portfolio.example.com`)
    - `NEXT_PUBLIC_DEFAULT_LOCALE` (for example `en`)
    - `REVALIDATION_SECRET` (strong random secret)
+   - `ADMIN_LOGIN_COMMAND` (secret single token, no spaces)
 4. Run one manual production deploy from Vercel dashboard and verify it is healthy.
 5. Create a Production Deploy Hook in Vercel project settings.
 6. Disable automatic Git production deploys for `main` in Vercel so deployment is controlled by the migrate-first workflow.
@@ -128,6 +129,8 @@ In GitHub -> repository -> Settings -> Secrets and variables -> Actions, add:
   - Public anon key used during CI preflight build.
 - `NEXT_PUBLIC_SITE_URL`
   - Public production domain used during CI preflight build.
+- `ADMIN_LOGIN_COMMAND`
+  - Secret terminal admin login command used during CI preflight build.
 
 Keep application runtime secrets in Vercel env settings, not GitHub Actions.
 
@@ -173,8 +176,9 @@ Use one of:
 
 1. Public pages load:
    - `/<locale>` for `en` and `fr`
-2. Admin login works:
-   - `/<locale>/admin/login`
+2. Admin access works via terminal login:
+   - Use the secret command configured in `ADMIN_LOGIN_COMMAND`
+   - Unauthenticated/non-admin access to `/<locale>/admin/*` shows localized `403` page
 3. Admin CRUD operations succeed:
    - skills, projects, experience, education, hobbies, testimonials, messages, settings
 4. Resume upload/download works.
@@ -243,6 +247,7 @@ Required host env vars:
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
 - `SUPABASE_SERVICE_ROLE_KEY`
 - `REVALIDATION_SECRET`
+- `ADMIN_LOGIN_COMMAND`
 
 Health check:
 

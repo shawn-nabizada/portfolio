@@ -101,10 +101,12 @@ function normalizeSuggestionComparableInput(value: string): string {
 export function useTerminal({
   locale,
   data,
+  adminLoginCommand,
   onRequestClose,
 }: {
   locale: Locale;
   data: PortfolioData;
+  adminLoginCommand: string;
   onRequestClose: () => void;
 }) {
   const router = useRouter();
@@ -126,7 +128,10 @@ export function useTerminal({
   const [activeSuggestionIndex, setActiveSuggestionIndex] = useState(-1);
   const [hoveredSuggestionIndex, setHoveredSuggestionIndex] = useState<number | null>(null);
 
-  const discoverableCommands = useMemo(() => getDiscoverableCommands(locale), [locale]);
+  const discoverableCommands = useMemo(
+    () => getDiscoverableCommands(locale, adminLoginCommand),
+    [locale, adminLoginCommand]
+  );
 
   const appendLines = useCallback((drafts: OutputLineDraft[]) => {
     if (drafts.length === 0) return;
@@ -854,6 +859,7 @@ export function useTerminal({
       data,
       locale,
       isCompact: isCompactDisplay,
+      adminLoginCommand,
     });
 
     if (result.clear) {
@@ -913,6 +919,7 @@ export function useTerminal({
     isSubmittingPrompt,
     locale,
     isCompactDisplay,
+    adminLoginCommand,
     onRequestClose,
     processPromptInput,
     promptState,

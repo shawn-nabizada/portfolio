@@ -14,6 +14,7 @@ import { HobbiesSection } from "@/components/public/hobbies-section";
 import { TestimonialsSection } from "@/components/public/testimonials-section";
 import { ContactSection } from "@/components/public/contact-section";
 import { TerminalTrigger } from "@/components/public/terminal/terminal-trigger";
+import { getAdminLoginCommand } from "@/lib/config/admin-login-command";
 
 export function generateStaticParams() {
   return locales.map((locale) => ({ locale }));
@@ -90,6 +91,7 @@ export default async function PublicPage({
   const typedLocale = locale as Locale;
   const t = getTranslations(typedLocale);
   const data = await getPortfolioData(typedLocale);
+  const adminLoginCommand = getAdminLoginCommand();
   const personJsonLd = buildPersonJsonLd({
     locale: typedLocale,
     profile: data.profile,
@@ -153,7 +155,11 @@ export default async function PublicPage({
           honeypotVisible: contactHoneypotVisible,
         }}
       />
-      <TerminalTrigger locale={typedLocale} data={data} />
+      <TerminalTrigger
+        locale={typedLocale}
+        data={data}
+        adminLoginCommand={adminLoginCommand}
+      />
     </>
   );
 }

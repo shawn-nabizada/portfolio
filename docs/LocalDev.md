@@ -75,6 +75,7 @@ Security requirement before continuing:
 | `ADMIN_EMAIL` | Yes | Admin login email for bootstrap |
 | `ADMIN_PASSWORD` | Yes | Admin login password for bootstrap |
 | `ADMIN_FULL_NAME` | Yes | Admin profile display name |
+| `ADMIN_LOGIN_COMMAND` | Yes | Secret terminal command (single token, no spaces; escape `$` as `\\$` in `.env.local`) |
 
 Important:
 
@@ -168,13 +169,14 @@ Open:
 
 - Public page: `http://localhost:3000/en`
 - French page: `http://localhost:3000/fr`
-- Admin login: `http://localhost:3000/en/admin/login`
+- Admin area (requires terminal login): `http://localhost:3000/en/admin/dashboard`
+- Terminal admin auth command: value from `ADMIN_LOGIN_COMMAND` in `.env.local`
 
 ## 8. Local Smoke Test Checklist
 
 1. Public page loads in EN and FR.
 2. Terminal opens and accepts commands (`help`, `ls`, `cd`, `cat`).
-3. Admin login works with the admin user.
+3. Terminal admin login works with the command configured in `ADMIN_LOGIN_COMMAND`.
 4. Admin can create/update content.
 5. Public page reflects updates.
 

@@ -9,9 +9,11 @@ import { TerminalModal } from "./terminal-modal";
 export function TerminalTrigger({
   locale,
   data,
+  adminLoginCommand,
 }: {
   locale: Locale;
   data: PortfolioData;
+  adminLoginCommand: string;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -20,13 +22,19 @@ export function TerminalTrigger({
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="terminal-card fixed bottom-4 right-4 z-[70] flex h-12 w-12 items-center justify-center rounded-xl bg-card/95 text-terminal-cyan transition-colors hover:text-terminal-green focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background"
+        className="terminal-card fixed bottom-4 right-4 z-[70] flex h-12 w-12 items-center justify-center rounded-xl bg-card/95 text-terminal-cyan transition-colors hover:text-terminal-green focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-terminal-green/70 focus-visible:ring-offset-2 focus-visible:ring-offset-background lg:h-20 lg:w-20 lg:rounded-2xl"
         aria-label={locale === "fr" ? "Ouvrir le terminal" : "Open terminal"}
       >
-        <TerminalSquare className="h-5 w-5" aria-hidden="true" />
+        <TerminalSquare className="h-5 w-5 lg:h-[3.75rem] lg:w-[3.75rem]" aria-hidden="true" />
       </button>
 
-      <TerminalModal open={open} locale={locale} data={data} onClose={() => setOpen(false)} />
+      <TerminalModal
+        open={open}
+        locale={locale}
+        data={data}
+        adminLoginCommand={adminLoginCommand}
+        onClose={() => setOpen(false)}
+      />
     </>
   );
 }

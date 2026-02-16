@@ -3,6 +3,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
 import { revalidatePortfolioPages } from "@/lib/revalidation";
+import { SHARED_PROFILE_ID } from "@/lib/constants/profile";
 
 export async function GET() {
   const adminCheck = await requireAdminUser();
@@ -14,7 +15,7 @@ export async function GET() {
   const { data, error } = await adminClient
     .from("profiles")
     .select("*")
-    .eq("id", adminCheck.user.id)
+    .eq("id", SHARED_PROFILE_ID)
     .maybeSingle();
 
   if (error) {
@@ -46,7 +47,7 @@ export async function PUT(request: NextRequest) {
     .from("profiles")
     .upsert(
       {
-        id: adminCheck.user.id,
+        id: SHARED_PROFILE_ID,
         full_name: full_name ?? null,
         headline_en: headline_en ?? null,
         headline_fr: headline_fr ?? null,

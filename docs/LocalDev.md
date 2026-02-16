@@ -116,9 +116,9 @@ Mandatory security check:
 2. Create user with your rotated `ADMIN_EMAIL` and `ADMIN_PASSWORD`.
 3. Set `app_metadata.role` to `admin`.
 4. Confirm the user email (or create as confirmed).
-5. Ensure a matching row exists in `public.profiles`.
+5. Ensure the shared profile singleton row exists in `public.profiles`.
 
-If `public.profiles` row is missing, create one in SQL Editor:
+If the shared `public.profiles` row is missing, create it in SQL Editor:
 
 ```sql
 insert into public.profiles (
@@ -130,16 +130,15 @@ insert into public.profiles (
   bio_fr,
   location
 )
-select
-  u.id,
+values (
+  '00000000-0000-0000-0000-000000000001',
   'Admin',
   'Full-Stack Developer',
   'Developpeur Full-Stack',
   'Passionate full-stack developer specializing in modern web technologies.',
   'Developpeur full-stack passionne, specialise dans les technologies web modernes.',
   'Montreal, QC'
-from auth.users u
-where u.email = '<your-admin-email>'
+)
 on conflict (id) do update
 set
   full_name = excluded.full_name,

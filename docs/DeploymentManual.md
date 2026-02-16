@@ -80,9 +80,9 @@ Use Supabase Dashboard (recommended):
 1. Authentication -> Users -> Add user.
 2. Confirm the email.
 3. Set `app_metadata.role` to `admin`.
-4. Ensure row exists in `public.profiles` for that user.
+4. Ensure the shared profile singleton row exists in `public.profiles`.
 
-If needed, upsert profile from SQL editor (replace email):
+If needed, upsert the shared profile from SQL editor:
 
 ```sql
 insert into public.profiles (
@@ -94,16 +94,15 @@ insert into public.profiles (
   bio_fr,
   location
 )
-select
-  u.id,
+values (
+  '00000000-0000-0000-0000-000000000001',
   'Admin',
   'Full-Stack Developer',
   'Developpeur Full-Stack',
   'Passionate full-stack developer specializing in modern web technologies.',
   'Developpeur full-stack passionne, specialise dans les technologies web modernes.',
   'Montreal, QC'
-from auth.users u
-where u.email = 'admin@example.com'
+)
 on conflict (id) do update
 set
   full_name = excluded.full_name,

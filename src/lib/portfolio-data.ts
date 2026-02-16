@@ -12,6 +12,7 @@ import type {
 import type { Locale } from "@/lib/i18n";
 import { unstable_cache } from "next/cache";
 import { createPublicServerClient } from "@/lib/supabase/public-server";
+import { SHARED_PROFILE_ID } from "@/lib/constants/profile";
 
 export interface LocalizedSkillCategory {
   id: string;
@@ -130,7 +131,7 @@ async function fetchPortfolioData(locale: Locale): Promise<PortfolioData> {
     resumesRes,
     settingsRes,
   ] = await Promise.all([
-    supabase.from("profiles").select("*").limit(1).maybeSingle(),
+    supabase.from("profiles").select("*").eq("id", SHARED_PROFILE_ID).maybeSingle(),
     supabase.from("skill_categories").select("*").order("order"),
     supabase.from("skills").select("*").order("order"),
     supabase
@@ -161,6 +162,25 @@ async function fetchPortfolioData(locale: Locale): Promise<PortfolioData> {
   throwIfQueryFailed("social_links", socialLinksRes);
   throwIfQueryFailed("resumes", resumesRes);
   throwIfQueryFailed("site_settings", settingsRes);
+
+  let profile = (profileRes.data as Profile | null) ?? null;
+  if (!profile) {
+    const legacyProfileRes = await supabase
+      .from("profiles")
+      .select("*")
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    throwIfQueryFailed("profiles (legacy fallback)", legacyProfileRes);
+
+    if (legacyProfileRes.data) {
+      console.warn(
+        "[portfolio-data] Loaded legacy profile row. Run latest Supabase migrations to enable shared profile singleton."
+      );
+      profile = legacyProfileRes.data as Profile;
+    }
+  }
 
   const categories = (categoriesRes.data ?? []) as SkillCategory[];
   const skills = (skillsRes.data ?? []) as Skill[];
@@ -271,7 +291,7 @@ async function fetchPortfolioData(locale: Locale): Promise<PortfolioData> {
   }
 
   return {
-    profile: (profileRes.data as Profile | null) ?? null,
+    profile,
     skillsByCategory,
     projects,
     experience: (experienceRes.data as Experience[]) ?? [],

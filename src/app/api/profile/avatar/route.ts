@@ -3,6 +3,10 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
 import { revalidatePortfolioPages } from "@/lib/revalidation";
+import {
+  SHARED_PROFILE_AVATAR_FOLDER,
+  SHARED_PROFILE_ID,
+} from "@/lib/constants/profile";
 
 const MAX_AVATAR_SIZE_BYTES = 2 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
@@ -48,8 +52,7 @@ export async function POST(request: NextRequest) {
   }
 
   const adminClient = createAdminClient();
-  const userId = adminCheck.user.id;
-  const folderPath = `profiles/${userId}`;
+  const folderPath = SHARED_PROFILE_AVATAR_FOLDER;
   const filePath = `${folderPath}/avatar-${Date.now()}.${extension}`;
 
   const { data: existingFiles, error: listError } = await adminClient.storage
@@ -85,7 +88,7 @@ export async function POST(request: NextRequest) {
     .from("profiles")
     .upsert(
       {
-        id: userId,
+        id: SHARED_PROFILE_ID,
         avatar_url: avatarUrl,
         updated_at: new Date().toISOString(),
       },

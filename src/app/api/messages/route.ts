@@ -4,6 +4,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { requireAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
 import { createPaginatedResponse, readPaginationParams } from "@/lib/pagination";
+import {
+  parseSearchQuery,
+  parseSortBy,
+  parseSortDir,
+  toOrIlikePattern,
+} from "@/lib/admin/list-query";
+
+const MESSAGE_SORT_FIELDS = ["created_at", "read", "name", "email"] as const;
 
 const MIN_FORM_FILL_MS = 3000;
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
@@ -67,15 +75,31 @@ export async function GET(request: NextRequest) {
   }
 
   const adminClient = createAdminClient();
-  const readParam = request.nextUrl.searchParams.get("read");
-  const pagination = readPaginationParams(request.nextUrl.searchParams);
+  const searchParams = request.nextUrl.searchParams;
+  const readParam = searchParams.get("read");
+  const pagination = readPaginationParams(searchParams);
+  const queryText = parseSearchQuery(searchParams.get("q"));
+  const sortBy = parseSortBy(searchParams.get("sortBy"), MESSAGE_SORT_FIELDS, "created_at");
+  const sortDir = parseSortDir(searchParams.get("sortDir"), "desc");
   let query = adminClient
     .from("contact_messages")
     .select("*", pagination.enabled ? { count: "exact" } : undefined)
-    .order("created_at", { ascending: false });
+    .order(sortBy, { ascending: sortDir === "asc" });
 
   if (readParam === "true" || readParam === "false") {
     query = query.eq("read", readParam === "true");
+  }
+
+  if (queryText) {
+    const pattern = toOrIlikePattern(queryText);
+    query = query.or(
+      [
+        `name.ilike.${pattern}`,
+        `email.ilike.${pattern}`,
+        `subject.ilike.${pattern}`,
+        `message.ilike.${pattern}`,
+      ].join(",")
+    );
   }
 
   if (pagination.enabled) {

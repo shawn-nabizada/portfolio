@@ -10,15 +10,39 @@ import {
   isSocialPresetKey,
   normalizeSocialUrl,
 } from "@/lib/social-presets";
+import {
+  parseSearchQuery,
+  parseSortBy,
+  parseSortDir,
+  toOrIlikePattern,
+} from "@/lib/admin/list-query";
+
+const SOCIAL_LINK_SORT_FIELDS = ["order", "platform", "url", "created_at"] as const;
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
-  const pagination = readPaginationParams(request.nextUrl.searchParams);
+  const searchParams = request.nextUrl.searchParams;
+  const pagination = readPaginationParams(searchParams);
+  const queryText = parseSearchQuery(searchParams.get("q"));
+  const sortBy = parseSortBy(searchParams.get("sortBy"), SOCIAL_LINK_SORT_FIELDS, "order");
+  const sortDir = parseSortDir(searchParams.get("sortDir"), "asc");
 
   let query = supabase
     .from("social_links")
     .select("*", pagination.enabled ? { count: "exact" } : undefined)
-    .order("order");
+    .order(sortBy, { ascending: sortDir === "asc" });
+
+  if (queryText) {
+    const pattern = toOrIlikePattern(queryText);
+    query = query.or(
+      [
+        `platform.ilike.${pattern}`,
+        `url.ilike.${pattern}`,
+        `icon.ilike.${pattern}`,
+      ].join(",")
+    );
+  }
+
   if (pagination.enabled) {
     query = query.range(pagination.from, pagination.to);
   }

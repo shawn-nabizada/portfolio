@@ -5,6 +5,16 @@ import { requireAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
 import { createPaginatedResponse, readPaginationParams } from "@/lib/pagination";
 import { revalidatePortfolioPages } from "@/lib/revalidation";
+import {
+  applyTranslationFilter,
+  parseSearchQuery,
+  parseSortBy,
+  parseSortDir,
+  parseTranslationFilter,
+  toOrIlikePattern,
+} from "@/lib/admin/list-query";
+
+const EDUCATION_SORT_FIELDS = ["order", "institution", "start_date", "end_date", "created_at"] as const;
 
 function normalizeMonthDate(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -13,12 +23,32 @@ function normalizeMonthDate(value: string | null | undefined): string | null {
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
-  const pagination = readPaginationParams(request.nextUrl.searchParams);
+  const searchParams = request.nextUrl.searchParams;
+  const pagination = readPaginationParams(searchParams);
+  const queryText = parseSearchQuery(searchParams.get("q"));
+  const sortBy = parseSortBy(searchParams.get("sortBy"), EDUCATION_SORT_FIELDS, "order");
+  const sortDir = parseSortDir(searchParams.get("sortDir"), "asc");
+  const translation = parseTranslationFilter(searchParams.get("translation"));
 
   let query = supabase
     .from("education")
     .select("*", pagination.enabled ? { count: "exact" } : undefined)
-    .order("order");
+    .order(sortBy, { ascending: sortDir === "asc" });
+
+  if (queryText) {
+    const pattern = toOrIlikePattern(queryText);
+    query = query.or(
+      [
+        `institution.ilike.${pattern}`,
+        `degree_en.ilike.${pattern}`,
+        `degree_fr.ilike.${pattern}`,
+        `location.ilike.${pattern}`,
+      ].join(",")
+    );
+  }
+
+  query = applyTranslationFilter(query, translation, "degree_en", "degree_fr");
+
   if (pagination.enabled) {
     query = query.range(pagination.from, pagination.to);
   }

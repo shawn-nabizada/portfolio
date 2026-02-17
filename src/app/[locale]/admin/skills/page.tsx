@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
-import { Plus, Pencil, Trash2, Tag, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Tag, Loader2, Copy } from "lucide-react";
 import { getTranslations, type Locale } from "@/lib/i18n";
 import type { Skill, SkillCategory } from "@/lib/types/database";
 import { Button } from "@/components/ui/button";
@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Select,
   SelectContent,
@@ -44,11 +45,19 @@ import {
 } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { AdminLanguageToggle } from "@/components/admin/admin-language-toggle";
+import { BulkActionToolbar } from "@/components/admin/bulk-action-toolbar";
 import { PaginationControls } from "@/components/admin/pagination-controls";
 import { fetchJson, fetchMutation } from "@/lib/http/mutation";
 import { DEFAULT_PAGE_SIZE, parsePageQuery } from "@/lib/pagination";
 import type { PaginatedResponse } from "@/lib/types/pagination";
+import { localizedText, resolvePreviewLanguage } from "@/lib/localized-preview";
 import { toast } from "sonner";
+
+const SORT_DIRS = ["asc", "desc"] as const;
+type SortDir = (typeof SORT_DIRS)[number];
+const TRANSLATION_FILTERS = ["all", "missing_en", "missing_fr", "complete"] as const;
+type TranslationFilter = (typeof TRANSLATION_FILTERS)[number];
 
 const UNCATEGORIZED_VALUE = "__uncategorized__";
 const PAGE_SIZE = DEFAULT_PAGE_SIZE;
@@ -61,6 +70,20 @@ function resolveSkillsTab(value: string | null): SkillsTab {
     return CATEGORIES_TAB;
   }
   return SKILLS_TAB;
+}
+
+function resolveSortDir(value: string | null): SortDir {
+  if (value && SORT_DIRS.includes(value as SortDir)) {
+    return value as SortDir;
+  }
+  return "asc";
+}
+
+function resolveTranslationFilter(value: string | null): TranslationFilter {
+  if (value && TRANSLATION_FILTERS.includes(value as TranslationFilter)) {
+    return value as TranslationFilter;
+  }
+  return "all";
 }
 
 // ─── Category Dialog ────────────────────────────────────────────────────
@@ -138,9 +161,21 @@ function CategoryDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="cat-name-fr">
-              {t.skills.categoryName} ({t.common.french})
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="cat-name-fr">
+                {t.skills.categoryName} ({t.common.french})
+              </Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setForm((f) => ({ ...f, name_fr: f.name_en }))
+                }
+              >
+                Copy EN -&gt; FR
+              </Button>
+            </div>
             <Input
               id="cat-name-fr"
               value={form.name_fr}
@@ -161,7 +196,7 @@ function CategoryDialog({
               }
             />
           </div>
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 -mx-6 border-t bg-background px-6 pt-4">
             <Button
               type="button"
               variant="outline"
@@ -270,9 +305,21 @@ function SkillDialog({
             />
           </div>
           <div className="space-y-2">
-            <Label htmlFor="skill-name-fr">
-              {t.skills.skillName} ({t.common.french})
-            </Label>
+            <div className="flex items-center justify-between">
+              <Label htmlFor="skill-name-fr">
+                {t.skills.skillName} ({t.common.french})
+              </Label>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setForm((f) => ({ ...f, name_fr: f.name_en }))
+                }
+              >
+                Copy EN -&gt; FR
+              </Button>
+            </div>
             <Input
               id="skill-name-fr"
               value={form.name_fr}
@@ -319,7 +366,7 @@ function SkillDialog({
               }
             />
           </div>
-          <DialogFooter>
+          <DialogFooter className="sticky bottom-0 -mx-6 border-t bg-background px-6 pt-4">
             <Button
               type="button"
               variant="outline"
@@ -408,6 +455,12 @@ export default function AdminSkillsPage() {
   const activeTabFromUrl = resolveSkillsTab(searchParams.get("tab"));
   const skillsPageFromUrl = parsePageQuery(searchParams.get("skillsPage"));
   const categoriesPageFromUrl = parsePageQuery(searchParams.get("categoriesPage"));
+  const skillsQueryFromUrl = searchParams.get("skillsQ") ?? "";
+  const categoriesQueryFromUrl = searchParams.get("categoriesQ") ?? "";
+  const sortDirFromUrl = resolveSortDir(searchParams.get("sortDir"));
+  const translationFromUrl = resolveTranslationFilter(searchParams.get("translation"));
+  const previewLangFromUrl =
+    searchParams.get("previewLang") === "fr" ? "fr" : resolvePreviewLanguage(locale);
 
   // Data
   const [skills, setSkills] = useState<Skill[]>([]);
@@ -416,10 +469,21 @@ export default function AdminSkillsPage() {
   const [activeTab, setActiveTab] = useState<SkillsTab>(activeTabFromUrl);
   const [skillsPage, setSkillsPage] = useState(skillsPageFromUrl);
   const [categoriesPage, setCategoriesPage] = useState(categoriesPageFromUrl);
+  const [sortDir, setSortDir] = useState<SortDir>(sortDirFromUrl);
+  const [translationFilter, setTranslationFilter] = useState<TranslationFilter>(
+    translationFromUrl
+  );
   const [skillsTotalPages, setSkillsTotalPages] = useState(1);
   const [categoriesTotalPages, setCategoriesTotalPages] = useState(1);
   const [skillsTotalItems, setSkillsTotalItems] = useState(0);
   const [categoriesTotalItems, setCategoriesTotalItems] = useState(0);
+  const [previewLang, setPreviewLang] = useState<Locale>(previewLangFromUrl);
+  const [skillsSearchQuery, setSkillsSearchQuery] = useState(skillsQueryFromUrl);
+  const [categoriesSearchQuery, setCategoriesSearchQuery] = useState(categoriesQueryFromUrl);
+  const [selectedSkillIds, setSelectedSkillIds] = useState<Set<string>>(new Set());
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<Set<string>>(new Set());
+  const [skillsBulkAction, setSkillsBulkAction] = useState("");
+  const [categoriesBulkAction, setCategoriesBulkAction] = useState("");
 
   // Category dialog
   const [categoryDialogOpen, setCategoryDialogOpen] = useState(false);
@@ -446,12 +510,28 @@ export default function AdminSkillsPage() {
   const fetchData = useCallback(async (activeSkillsPage: number, activeCategoriesPage: number) => {
     setIsLoading(true);
     try {
+      const skillsParams = new URLSearchParams();
+      skillsParams.set("page", String(activeSkillsPage));
+      skillsParams.set("pageSize", String(PAGE_SIZE));
+      skillsParams.set("q", skillsSearchQuery.trim());
+      skillsParams.set("sortBy", "order");
+      skillsParams.set("sortDir", sortDir);
+      skillsParams.set("translation", translationFilter);
+
+      const categoriesParams = new URLSearchParams();
+      categoriesParams.set("page", String(activeCategoriesPage));
+      categoriesParams.set("pageSize", String(PAGE_SIZE));
+      categoriesParams.set("q", categoriesSearchQuery.trim());
+      categoriesParams.set("sortBy", "order");
+      categoriesParams.set("sortDir", sortDir);
+      categoriesParams.set("translation", translationFilter);
+
       const [skillsData, categoriesData] = await Promise.all([
         fetchJson<PaginatedResponse<Skill>>(
-          `/api/skills?page=${activeSkillsPage}&pageSize=${PAGE_SIZE}`
+          `/api/skills?${skillsParams.toString()}`
         ),
         fetchJson<PaginatedResponse<SkillCategory>>(
-          `/api/skill-categories?page=${activeCategoriesPage}&pageSize=${PAGE_SIZE}`
+          `/api/skill-categories?${categoriesParams.toString()}`
         ),
       ]);
       setSkills(skillsData.items);
@@ -469,7 +549,7 @@ export default function AdminSkillsPage() {
     } finally {
       setIsLoading(false);
     }
-  }, []);
+  }, [categoriesSearchQuery, skillsSearchQuery, sortDir, translationFilter]);
 
   useEffect(() => {
     setActiveTab(activeTabFromUrl);
@@ -484,13 +564,52 @@ export default function AdminSkillsPage() {
   }, [categoriesPageFromUrl]);
 
   useEffect(() => {
+    setSkillsSearchQuery(skillsQueryFromUrl);
+  }, [skillsQueryFromUrl]);
+
+  useEffect(() => {
+    setCategoriesSearchQuery(categoriesQueryFromUrl);
+  }, [categoriesQueryFromUrl]);
+
+  useEffect(() => {
+    setSortDir(sortDirFromUrl);
+  }, [sortDirFromUrl]);
+
+  useEffect(() => {
+    setTranslationFilter(translationFromUrl);
+  }, [translationFromUrl]);
+
+  useEffect(() => {
+    setPreviewLang(previewLangFromUrl);
+  }, [previewLangFromUrl]);
+
+  useEffect(() => {
     fetchData(skillsPage, categoriesPage);
   }, [fetchData, skillsPage, categoriesPage]);
+
+  useEffect(() => {
+    setSelectedSkillIds((current) => {
+      const available = new Set(skills.map((item) => item.id));
+      return new Set(Array.from(current).filter((id) => available.has(id)));
+    });
+  }, [skills]);
+
+  useEffect(() => {
+    setSelectedCategoryIds((current) => {
+      const available = new Set(categories.map((item) => item.id));
+      return new Set(Array.from(current).filter((id) => available.has(id)));
+    });
+  }, [categories]);
 
   const replaceUrlState = (updates: {
     tab?: SkillsTab;
     skillsPage?: number;
     categoriesPage?: number;
+    skillsQ?: string;
+    categoriesQ?: string;
+    sortDir?: SortDir;
+    translation?: TranslationFilter;
+    previewLang?: Locale;
   }) => {
     const nextTab = updates.tab ?? activeTab;
     const nextSkillsPage = Math.max(1, updates.skillsPage ?? skillsPage);
@@ -501,6 +620,11 @@ export default function AdminSkillsPage() {
     params.set("skillsPage", String(nextSkillsPage));
     params.set("categoriesPage", String(nextCategoriesPage));
     params.set("pageSize", String(PAGE_SIZE));
+    params.set("skillsQ", updates.skillsQ ?? skillsSearchQuery.trim());
+    params.set("categoriesQ", updates.categoriesQ ?? categoriesSearchQuery.trim());
+    params.set("sortDir", updates.sortDir ?? sortDir);
+    params.set("translation", updates.translation ?? translationFilter);
+    params.set("previewLang", updates.previewLang ?? previewLang);
     router.replace(`${pathname}?${params.toString()}`, { scroll: false });
 
     setActiveTab(nextTab);
@@ -523,6 +647,31 @@ export default function AdminSkillsPage() {
       Math.max(1, categoriesTotalPages)
     );
     replaceUrlState({ categoriesPage: boundedPage });
+  };
+
+  const updateSkillsQuery = (value: string) => {
+    setSkillsSearchQuery(value);
+    replaceUrlState({ skillsQ: value.trim(), skillsPage: 1 });
+  };
+
+  const updateCategoriesQuery = (value: string) => {
+    setCategoriesSearchQuery(value);
+    replaceUrlState({ categoriesQ: value.trim(), categoriesPage: 1 });
+  };
+
+  const updateSortDir = (value: SortDir) => {
+    setSortDir(value);
+    replaceUrlState({ sortDir: value, skillsPage: 1, categoriesPage: 1 });
+  };
+
+  const updateTranslationFilter = (value: TranslationFilter) => {
+    setTranslationFilter(value);
+    replaceUrlState({ translation: value, skillsPage: 1, categoriesPage: 1 });
+  };
+
+  const updatePreviewLang = (value: Locale) => {
+    setPreviewLang(value);
+    replaceUrlState({ previewLang: value });
   };
 
   const refreshAfterMutation = async (type?: "skill" | "category") => {
@@ -626,6 +775,26 @@ export default function AdminSkillsPage() {
     setDeleteDialogOpen(true);
   };
 
+  const duplicateSkill = async (id: string) => {
+    try {
+      await fetchMutation(`/api/skills/${id}/duplicate`, { method: "POST" });
+      toast.success(t.common.savedSuccessfully);
+      await refreshAfterMutation("skill");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
+    }
+  };
+
+  const duplicateCategory = async (id: string) => {
+    try {
+      await fetchMutation(`/api/skill-categories/${id}/duplicate`, { method: "POST" });
+      toast.success(t.common.savedSuccessfully);
+      await refreshAfterMutation("category");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
+    }
+  };
+
   // ── Delete handler ─────────────────────────────────────────────────
   const handleDelete = async () => {
     if (!deleteTarget) return;
@@ -650,7 +819,122 @@ export default function AdminSkillsPage() {
   const getCategoryName = (categoryId: string | null) => {
     if (!categoryId) return t.skills.uncategorized;
     const cat = categories.find((c) => c.id === categoryId);
-    return cat ? cat.name_en : t.skills.uncategorized;
+    return cat
+      ? localizedText(previewLang, cat.name_en, cat.name_fr)
+      : t.skills.uncategorized;
+  };
+  const previewLanguageLabel =
+    previewLang === "fr" ? t.common.french : t.common.english;
+  const missingTranslationLabel =
+    locale === "fr"
+      ? previewLang === "fr"
+        ? "FR manquant"
+        : "EN manquant"
+      : previewLang === "fr"
+        ? "FR missing"
+        : "EN missing";
+
+  const allSkillsSelected = useMemo(
+    () => skills.length > 0 && skills.every((item) => selectedSkillIds.has(item.id)),
+    [skills, selectedSkillIds]
+  );
+  const allCategoriesSelected = useMemo(
+    () =>
+      categories.length > 0 &&
+      categories.every((item) => selectedCategoryIds.has(item.id)),
+    [categories, selectedCategoryIds]
+  );
+
+  const translationCounts = useMemo(() => {
+    let missingEn = 0;
+    let missingFr = 0;
+    let complete = 0;
+    for (const skill of skills) {
+      const hasEn = Boolean(skill.name_en?.trim());
+      const hasFr = Boolean(skill.name_fr?.trim());
+      if (!hasEn) missingEn += 1;
+      if (!hasFr) missingFr += 1;
+      if (hasEn && hasFr) complete += 1;
+    }
+    return { missingEn, missingFr, complete };
+  }, [skills]);
+
+  const toggleSkillSelection = (id: string, checked: boolean) => {
+    setSelectedSkillIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleCategorySelection = (id: string, checked: boolean) => {
+    setSelectedCategoryIds((current) => {
+      const next = new Set(current);
+      if (checked) {
+        next.add(id);
+      } else {
+        next.delete(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleAllSkills = (checked: boolean) => {
+    setSelectedSkillIds(() => {
+      if (!checked) return new Set();
+      return new Set(skills.map((item) => item.id));
+    });
+  };
+
+  const toggleAllCategories = (checked: boolean) => {
+    setSelectedCategoryIds(() => {
+      if (!checked) return new Set();
+      return new Set(categories.map((item) => item.id));
+    });
+  };
+
+  const applySkillsBulkAction = async () => {
+    if (skillsBulkAction !== "delete" || selectedSkillIds.size === 0) return;
+    if (!window.confirm(locale === "fr" ? "Supprimer les compétences sélectionnées ?" : "Delete selected skills?")) {
+      return;
+    }
+
+    try {
+      await fetchMutation("/api/skills/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", ids: Array.from(selectedSkillIds) }),
+      });
+      toast.success(t.common.deletedSuccessfully);
+      setSelectedSkillIds(new Set());
+      await refreshAfterMutation("skill");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
+    }
+  };
+
+  const applyCategoriesBulkAction = async () => {
+    if (categoriesBulkAction !== "delete" || selectedCategoryIds.size === 0) return;
+    if (!window.confirm(locale === "fr" ? "Supprimer les catégories sélectionnées ?" : "Delete selected categories?")) {
+      return;
+    }
+
+    try {
+      await fetchMutation("/api/skill-categories/bulk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "delete", ids: Array.from(selectedCategoryIds) }),
+      });
+      toast.success(t.common.deletedSuccessfully);
+      setSelectedCategoryIds(new Set());
+      await refreshAfterMutation("category");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t.common.errorOccurred);
+    }
   };
 
   // ── Loading state ──────────────────────────────────────────────────
@@ -672,8 +956,44 @@ export default function AdminSkillsPage() {
   return (
     <div className="space-y-8">
       {/* Page title */}
-      <div>
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <h1 className="text-3xl font-bold tracking-tight">{t.skills.title}</h1>
+        <div className="flex flex-wrap items-center gap-2">
+          <Select
+            value={translationFilter}
+            onValueChange={(value) => updateTranslationFilter(value as TranslationFilter)}
+          >
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">{locale === "fr" ? "Toutes traductions" : "All translations"}</SelectItem>
+              <SelectItem value="missing_en">{locale === "fr" ? "EN manquant" : "Missing EN"}</SelectItem>
+              <SelectItem value="missing_fr">{locale === "fr" ? "FR manquant" : "Missing FR"}</SelectItem>
+              <SelectItem value="complete">{locale === "fr" ? "Complet" : "Complete"}</SelectItem>
+            </SelectContent>
+          </Select>
+          <Select value={sortDir} onValueChange={(value) => updateSortDir(value as SortDir)}>
+            <SelectTrigger className="w-44">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="asc">{locale === "fr" ? "Ordre croissant" : "Order ascending"}</SelectItem>
+              <SelectItem value="desc">{locale === "fr" ? "Ordre décroissant" : "Order descending"}</SelectItem>
+            </SelectContent>
+          </Select>
+          <AdminLanguageToggle
+            value={previewLang}
+            onChange={updatePreviewLang}
+            labels={{ english: t.common.english, french: t.common.french }}
+          />
+        </div>
+      </div>
+
+      <div className="flex flex-wrap gap-2 text-xs text-muted-foreground">
+        <Badge variant="outline">{locale === "fr" ? "EN manquant" : "Missing EN"}: {translationCounts.missingEn}</Badge>
+        <Badge variant="outline">{locale === "fr" ? "FR manquant" : "Missing FR"}: {translationCounts.missingFr}</Badge>
+        <Badge variant="outline">{locale === "fr" ? "Complet" : "Complete"}: {translationCounts.complete}</Badge>
       </div>
 
       <Tabs
@@ -687,7 +1007,15 @@ export default function AdminSkillsPage() {
 
         {/* ─── Skills Tab ──────────────────────────────────────────── */}
         <TabsContent value="skills" className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Input
+              value={skillsSearchQuery}
+              onChange={(e) => updateSkillsQuery(e.target.value)}
+              placeholder={
+                locale === "fr" ? "Rechercher des compétences..." : "Search skills..."
+              }
+              className="w-64"
+            />
             <Button onClick={openAddSkill}>
               <Plus className="mr-2 h-4 w-4" />
               {t.skills.addSkill}
@@ -702,16 +1030,29 @@ export default function AdminSkillsPage() {
             </Card>
           ) : (
             <div className="space-y-4">
+              <BulkActionToolbar
+                allSelected={allSkillsSelected}
+                pageCount={skills.length}
+                selectedCount={selectedSkillIds.size}
+                actionValue={skillsBulkAction}
+                actions={[{ value: "delete", label: locale === "fr" ? "Supprimer" : "Delete" }]}
+                labels={{
+                  selectAll: locale === "fr" ? "Tout sélectionner (page)" : "Select all (page)",
+                  selected: locale === "fr" ? "Sélectionnés" : "Selected",
+                  actionPlaceholder: locale === "fr" ? "Action groupée" : "Bulk action",
+                  apply: locale === "fr" ? "Appliquer" : "Apply",
+                }}
+                onToggleAll={toggleAllSkills}
+                onActionChange={setSkillsBulkAction}
+                onApply={applySkillsBulkAction}
+              />
               <Card>
                 <CardContent className="p-0">
                   <Table>
                     <TableHeader>
                       <TableRow>
                         <TableHead>
-                          {t.skills.skillName} ({t.common.english})
-                        </TableHead>
-                        <TableHead>
-                          {t.skills.skillName} ({t.common.french})
+                          {t.skills.skillName} ({previewLanguageLabel})
                         </TableHead>
                         <TableHead>{t.skills.category}</TableHead>
                         <TableHead>{t.common.order}</TableHead>
@@ -721,40 +1062,75 @@ export default function AdminSkillsPage() {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {skills.map((skill) => (
-                        <TableRow key={skill.id}>
-                          <TableCell className="font-medium">
-                            {skill.name_en}
-                          </TableCell>
-                          <TableCell>{skill.name_fr}</TableCell>
-                          <TableCell>
-                            <Badge variant="secondary">
-                              {skill.category?.name_en || getCategoryName(skill.category_id)}
-                            </Badge>
-                          </TableCell>
-                          <TableCell>{skill.order}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end gap-2">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => openEditSkill(skill)}
-                              >
-                                <Pencil className="h-4 w-4" />
-                                <span className="sr-only">{t.common.edit}</span>
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                onClick={() => openDeleteSkill(skill.id)}
-                              >
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                                <span className="sr-only">{t.common.delete}</span>
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      ))}
+                      {skills.map((skill) => {
+                        const skillName = localizedText(
+                          previewLang,
+                          skill.name_en,
+                          skill.name_fr
+                        );
+                        const categoryName = skill.category
+                          ? localizedText(
+                              previewLang,
+                              skill.category.name_en,
+                              skill.category.name_fr
+                            )
+                          : getCategoryName(skill.category_id);
+
+                        return (
+                          <TableRow key={skill.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center gap-2">
+                                <Checkbox
+                                  checked={selectedSkillIds.has(skill.id)}
+                                  onCheckedChange={(checked) =>
+                                    toggleSkillSelection(skill.id, checked === true)
+                                  }
+                                />
+                                {skillName}
+                                {(previewLang === "fr"
+                                  ? !skill.name_fr?.trim()
+                                  : !skill.name_en?.trim()) && (
+                                  <Badge variant="outline" className="text-[10px]">
+                                    {missingTranslationLabel}
+                                  </Badge>
+                                )}
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="secondary">{categoryName}</Badge>
+                            </TableCell>
+                            <TableCell>{skill.order}</TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex justify-end gap-2">
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => duplicateSkill(skill.id)}
+                                >
+                                  <Copy className="h-4 w-4" />
+                                  <span className="sr-only">Duplicate</span>
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => openEditSkill(skill)}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                  <span className="sr-only">{t.common.edit}</span>
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  onClick={() => openDeleteSkill(skill.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                  <span className="sr-only">{t.common.delete}</span>
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
                     </TableBody>
                   </Table>
                 </CardContent>
@@ -778,7 +1154,17 @@ export default function AdminSkillsPage() {
 
         {/* ─── Categories Tab ──────────────────────────────────────── */}
         <TabsContent value="categories" className="space-y-4">
-          <div className="flex justify-end">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Input
+              value={categoriesSearchQuery}
+              onChange={(e) => updateCategoriesQuery(e.target.value)}
+              placeholder={
+                locale === "fr"
+                  ? "Rechercher des catégories..."
+                  : "Search categories..."
+              }
+              className="w-64"
+            />
             <Button onClick={openAddCategory}>
               <Plus className="mr-2 h-4 w-4" />
               {t.skills.addCategory}
@@ -793,47 +1179,90 @@ export default function AdminSkillsPage() {
             </Card>
           ) : (
             <div className="space-y-4">
+              <BulkActionToolbar
+                allSelected={allCategoriesSelected}
+                pageCount={categories.length}
+                selectedCount={selectedCategoryIds.size}
+                actionValue={categoriesBulkAction}
+                actions={[{ value: "delete", label: locale === "fr" ? "Supprimer" : "Delete" }]}
+                labels={{
+                  selectAll: locale === "fr" ? "Tout sélectionner (page)" : "Select all (page)",
+                  selected: locale === "fr" ? "Sélectionnés" : "Selected",
+                  actionPlaceholder: locale === "fr" ? "Action groupée" : "Bulk action",
+                  apply: locale === "fr" ? "Appliquer" : "Apply",
+                }}
+                onToggleAll={toggleAllCategories}
+                onActionChange={setCategoriesBulkAction}
+                onApply={applyCategoriesBulkAction}
+              />
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {categories.map((cat) => (
-                  <Card key={cat.id}>
-                    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                      <CardTitle className="text-sm font-medium">
-                        <div className="flex items-center gap-2">
+                {categories.map((cat) => {
+                  const categoryName = localizedText(
+                    previewLang,
+                    cat.name_en,
+                    cat.name_fr
+                  );
+
+                  return (
+                    <Card key={cat.id}>
+                      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                        <CardTitle className="text-sm font-medium">
+                          <div className="flex items-center gap-2">
+                          <Checkbox
+                            checked={selectedCategoryIds.has(cat.id)}
+                            onCheckedChange={(checked) =>
+                              toggleCategorySelection(cat.id, checked === true)
+                            }
+                          />
                           <Tag className="h-4 w-4 text-muted-foreground" />
-                          {cat.name_en}
+                          {categoryName}
+                          {(previewLang === "fr"
+                            ? !cat.name_fr?.trim()
+                            : !cat.name_en?.trim()) && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {missingTranslationLabel}
+                            </Badge>
+                          )}
                         </div>
                       </CardTitle>
-                      <div className="flex gap-1">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => openEditCategory(cat)}
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                          <span className="sr-only">{t.common.edit}</span>
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8"
-                          onClick={() => openDeleteCategory(cat.id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5 text-destructive" />
-                          <span className="sr-only">{t.common.delete}</span>
-                        </Button>
-                      </div>
-                    </CardHeader>
-                    <CardContent>
-                      <p className="text-sm text-muted-foreground">
-                        {cat.name_fr}
-                      </p>
-                      <div className="mt-2 text-xs text-muted-foreground">
-                        {t.common.order}: {cat.order}
-                      </div>
-                    </CardContent>
-                  </Card>
-                ))}
+                        <div className="flex gap-1">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => duplicateCategory(cat.id)}
+                          >
+                            <Copy className="h-3.5 w-3.5" />
+                            <span className="sr-only">Duplicate</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openEditCategory(cat)}
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            <span className="sr-only">{t.common.edit}</span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => openDeleteCategory(cat.id)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+                            <span className="sr-only">{t.common.delete}</span>
+                          </Button>
+                        </div>
+                      </CardHeader>
+                      <CardContent>
+                        <div className="mt-2 text-xs text-muted-foreground">
+                          {t.common.order}: {cat.order}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  );
+                })}
               </div>
               <PaginationControls
                 page={categoriesPage}

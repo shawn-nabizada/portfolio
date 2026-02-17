@@ -5,6 +5,16 @@ import { requireAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
 import { createPaginatedResponse, readPaginationParams } from "@/lib/pagination";
 import { revalidatePortfolioPages } from "@/lib/revalidation";
+import {
+  applyTranslationFilter,
+  parseSearchQuery,
+  parseSortBy,
+  parseSortDir,
+  parseTranslationFilter,
+  toOrIlikePattern,
+} from "@/lib/admin/list-query";
+
+const EXPERIENCE_SORT_FIELDS = ["order", "company", "start_date", "end_date", "created_at"] as const;
 
 function normalizeMonthDate(value: string | null | undefined): string | null {
   if (!value) return null;
@@ -13,12 +23,34 @@ function normalizeMonthDate(value: string | null | undefined): string | null {
 
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
-  const pagination = readPaginationParams(request.nextUrl.searchParams);
+  const searchParams = request.nextUrl.searchParams;
+  const pagination = readPaginationParams(searchParams);
+  const queryText = parseSearchQuery(searchParams.get("q"));
+  const sortBy = parseSortBy(searchParams.get("sortBy"), EXPERIENCE_SORT_FIELDS, "order");
+  const sortDir = parseSortDir(searchParams.get("sortDir"), "asc");
+  const translation = parseTranslationFilter(searchParams.get("translation"));
 
   let query = supabase
     .from("experience")
     .select("*", pagination.enabled ? { count: "exact" } : undefined)
-    .order("order");
+    .order(sortBy, { ascending: sortDir === "asc" });
+
+  if (queryText) {
+    const pattern = toOrIlikePattern(queryText);
+    query = query.or(
+      [
+        `company.ilike.${pattern}`,
+        `position_en.ilike.${pattern}`,
+        `position_fr.ilike.${pattern}`,
+        `description_en.ilike.${pattern}`,
+        `description_fr.ilike.${pattern}`,
+        `location.ilike.${pattern}`,
+      ].join(",")
+    );
+  }
+
+  query = applyTranslationFilter(query, translation, "position_en", "position_fr");
+
   if (pagination.enabled) {
     query = query.range(pagination.from, pagination.to);
   }

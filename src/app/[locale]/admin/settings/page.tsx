@@ -6,6 +6,7 @@ import { getTranslations, type Locale } from "@/lib/i18n";
 import type { Profile } from "@/lib/types/database";
 import { fetchJson, fetchMutation } from "@/lib/http/mutation";
 import { toast } from "sonner";
+import { AdminLanguageToggle } from "@/components/admin/admin-language-toggle";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
+import { localizedText, resolvePreviewLanguage } from "@/lib/localized-preview";
 
 interface SiteSettings {
   site_title?: { en?: string; fr?: string };
@@ -48,6 +50,7 @@ export default function AdminSettingsPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [profile, setProfile] = useState<Profile | null>(null);
+  const [previewLang, setPreviewLang] = useState<Locale>(resolvePreviewLanguage(locale));
 
   const [profileForm, setProfileForm] = useState({
     full_name: "",
@@ -336,9 +339,53 @@ export default function AdminSettingsPage() {
     );
   }
 
+  const previewLanguageLabel = previewLang === "fr" ? t.common.french : t.common.english;
+  const missingTranslationLabel =
+    locale === "fr" ? "Traduction manquante" : "Missing translation";
+  const profilePreviewLabel = locale === "fr" ? "Aperçu du profil" : "Profile preview";
+  const sitePreviewLabel = locale === "fr" ? "Aperçu du site" : "Site preview";
+  const previewEmptyLabel = locale === "fr" ? "Aucune valeur" : "No value";
+  const headlinePreview = localizedText(
+    previewLang,
+    profileForm.headline_en,
+    profileForm.headline_fr
+  ).trim();
+  const bioPreview = localizedText(previewLang, profileForm.bio_en, profileForm.bio_fr).trim();
+  const siteTitlePreview = localizedText(
+    previewLang,
+    siteForm.site_title_en,
+    siteForm.site_title_fr
+  ).trim();
+  const siteDescriptionPreview = localizedText(
+    previewLang,
+    siteForm.site_description_en,
+    siteForm.site_description_fr
+  ).trim();
+  const heroTitlePreview = localizedText(
+    previewLang,
+    siteForm.hero_title_en,
+    siteForm.hero_title_fr
+  ).trim();
+  const heroSubtitlePreview = localizedText(
+    previewLang,
+    siteForm.hero_subtitle_en,
+    siteForm.hero_subtitle_fr
+  ).trim();
+
+  const isPreviewValueMissing = (english: string, french: string) =>
+    (previewLang === "fr" ? french : english).trim().length === 0;
+
   return (
     <div className="space-y-6">
-      <h1 className="text-3xl font-bold tracking-tight">{t.settings.title}</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-3xl font-bold tracking-tight">{t.settings.title}</h1>
+        <AdminLanguageToggle
+          value={previewLang}
+          onChange={setPreviewLang}
+          labels={{ english: t.common.english, french: t.common.french }}
+          ariaLabel={locale === "fr" ? "Langue d'aperçu" : "Preview language"}
+        />
+      </div>
 
       <Tabs defaultValue="profile" className="space-y-4">
         <TabsList>
@@ -357,6 +404,34 @@ export default function AdminSettingsPage() {
                   Profile does not exist yet. Saving will create it.
                 </p>
               )}
+
+              <div className="space-y-3 rounded-md border border-border bg-muted/20 p-4">
+                <p className="text-sm font-medium">
+                  {profilePreviewLabel} ({previewLanguageLabel})
+                </p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{t.settings.headline}</p>
+                    {isPreviewValueMissing(profileForm.headline_en, profileForm.headline_fr) ? (
+                      <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {missingTranslationLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-sm">{headlinePreview || previewEmptyLabel}</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{t.settings.bio}</p>
+                    {isPreviewValueMissing(profileForm.bio_en, profileForm.bio_fr) ? (
+                      <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {missingTranslationLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm">{bioPreview || previewEmptyLabel}</p>
+                </div>
+              </div>
 
               <div className="space-y-2">
                 <Label>{t.settings.fullName}</Label>
@@ -495,6 +570,68 @@ export default function AdminSettingsPage() {
               <CardTitle>{t.settings.site}</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="space-y-3 rounded-md border border-border bg-muted/20 p-4">
+                <p className="text-sm font-medium">
+                  {sitePreviewLabel} ({previewLanguageLabel})
+                </p>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{t.settings.siteTitle}</p>
+                    {isPreviewValueMissing(siteForm.site_title_en, siteForm.site_title_fr) ? (
+                      <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {missingTranslationLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-sm">{siteTitlePreview || previewEmptyLabel}</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">
+                      {t.settings.siteDescription}
+                    </p>
+                    {isPreviewValueMissing(
+                      siteForm.site_description_en,
+                      siteForm.site_description_fr
+                    ) ? (
+                      <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {missingTranslationLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm">
+                    {siteDescriptionPreview || previewEmptyLabel}
+                  </p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{t.settings.heroTitle}</p>
+                    {isPreviewValueMissing(siteForm.hero_title_en, siteForm.hero_title_fr) ? (
+                      <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {missingTranslationLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="text-sm">{heroTitlePreview || previewEmptyLabel}</p>
+                </div>
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <p className="text-xs text-muted-foreground">{t.settings.heroSubtitle}</p>
+                    {isPreviewValueMissing(
+                      siteForm.hero_subtitle_en,
+                      siteForm.hero_subtitle_fr
+                    ) ? (
+                      <span className="rounded-full border border-border px-2 py-0.5 text-[11px] text-muted-foreground">
+                        {missingTranslationLabel}
+                      </span>
+                    ) : null}
+                  </div>
+                  <p className="whitespace-pre-wrap text-sm">
+                    {heroSubtitlePreview || previewEmptyLabel}
+                  </p>
+                </div>
+              </div>
+
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
                   <Label>

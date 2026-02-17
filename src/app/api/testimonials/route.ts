@@ -5,6 +5,16 @@ import { isAdminUser } from "@/lib/auth/admin";
 import { apiError, apiSuccess } from "@/lib/http/api";
 import { createPaginatedResponse, readPaginationParams } from "@/lib/pagination";
 import { TESTIMONIAL_MAX_CHARS } from "@/lib/constants/testimonials";
+import {
+  applyTranslationFilter,
+  parseSearchQuery,
+  parseSortBy,
+  parseSortDir,
+  parseTranslationFilter,
+  toOrIlikePattern,
+} from "@/lib/admin/list-query";
+
+const TESTIMONIAL_SORT_FIELDS = ["created_at", "status", "author_name"] as const;
 
 const MIN_FORM_FILL_MS = 3000;
 const RATE_LIMIT_WINDOW_MS = 10 * 60 * 1000;
@@ -62,8 +72,13 @@ function silentSpamSuccess() {
 }
 
 export async function GET(request: NextRequest) {
-  const status = request.nextUrl.searchParams.get("status");
-  const pagination = readPaginationParams(request.nextUrl.searchParams);
+  const searchParams = request.nextUrl.searchParams;
+  const status = searchParams.get("status");
+  const pagination = readPaginationParams(searchParams);
+  const queryText = parseSearchQuery(searchParams.get("q"));
+  const sortBy = parseSortBy(searchParams.get("sortBy"), TESTIMONIAL_SORT_FIELDS, "created_at");
+  const sortDir = parseSortDir(searchParams.get("sortDir"), "desc");
+  const translation = parseTranslationFilter(searchParams.get("translation"));
   const supabase = await createClient();
 
   const {
@@ -77,11 +92,26 @@ export async function GET(request: NextRequest) {
     let query = adminClient
       .from("testimonials")
       .select("*", pagination.enabled ? { count: "exact" } : undefined)
-      .order("created_at", { ascending: false });
+      .order(sortBy, { ascending: sortDir === "asc" });
 
     if (status && ["pending", "approved", "rejected"].includes(status)) {
       query = query.eq("status", status);
     }
+
+    if (queryText) {
+      const pattern = toOrIlikePattern(queryText);
+      query = query.or(
+        [
+          `author_name.ilike.${pattern}`,
+          `author_title.ilike.${pattern}`,
+          `author_company.ilike.${pattern}`,
+          `content_en.ilike.${pattern}`,
+          `content_fr.ilike.${pattern}`,
+        ].join(",")
+      );
+    }
+
+    query = applyTranslationFilter(query, translation, "content_en", "content_fr");
 
     if (pagination.enabled) {
       query = query.range(pagination.from, pagination.to);
@@ -108,10 +138,23 @@ export async function GET(request: NextRequest) {
     .from("testimonials")
     .select("*", pagination.enabled ? { count: "exact" } : undefined)
     .eq("status", "approved")
-    .order("created_at", { ascending: false });
+    .order(sortBy, { ascending: sortDir === "asc" });
 
   if (status === "approved") {
     publicQuery = publicQuery.eq("status", "approved");
+  }
+
+  if (queryText) {
+    const pattern = toOrIlikePattern(queryText);
+    publicQuery = publicQuery.or(
+      [
+        `author_name.ilike.${pattern}`,
+        `author_title.ilike.${pattern}`,
+        `author_company.ilike.${pattern}`,
+        `content_en.ilike.${pattern}`,
+        `content_fr.ilike.${pattern}`,
+      ].join(",")
+    );
   }
 
   if (pagination.enabled) {

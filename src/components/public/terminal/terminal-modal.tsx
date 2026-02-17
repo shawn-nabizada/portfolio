@@ -202,7 +202,7 @@ export function TerminalModal({
         aria-labelledby={titleId}
         tabIndex={-1}
         className={cn(
-          "mt-3 flex h-[80dvh] w-[98vw] max-h-[80dvh] flex-col overflow-hidden rounded-xl border border-terminal-border bg-card shadow-[0_0_25px_var(--terminal-glow)] transition-all duration-200 ease-out sm:mt-0 sm:h-[88vh] sm:w-[94vw] sm:max-h-[88vh] lg:h-[608px] lg:w-[945px] lg:max-h-[90vh] lg:max-w-[95vw]",
+          "mt-3 flex h-[80dvh] w-[98vw] max-h-[80dvh] flex-col overflow-hidden rounded-xl border border-terminal-border bg-card shadow-[0_0_25px_var(--terminal-glow)] transition-all duration-200 ease-out sm:mt-0 sm:h-[88vh] sm:w-[94vw] sm:max-h-[88vh] lg:h-[548px] lg:w-[945px] lg:max-h-[90vh] lg:max-w-[95vw]",
           isVisible ? "translate-y-0 scale-100 opacity-100" : "translate-y-3 scale-[0.98] opacity-0"
         )}
       >
